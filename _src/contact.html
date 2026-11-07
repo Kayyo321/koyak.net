@@ -27,6 +27,7 @@ input:user-invalid, textarea:user-invalid { border-color: var(--signal); }
 .elsewhere .mono { color: var(--graphite); }
 
 .env { position: sticky; top: 40px; }
+@media (max-width: 900px) { .env { position: static; } }
 .env svg { overflow: visible; }
 .letter { transform: translateY(calc(var(--sink, 0) * 196px)); transition: transform .7s var(--ease-in-out); }
 .flap { transform-box: view-box; transform-origin: 50% 200px; transform: scaleY(-1); opacity: 0; }

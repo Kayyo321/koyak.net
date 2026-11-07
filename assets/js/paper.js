@@ -32,6 +32,8 @@
     const l = pts[pts.length - 1]; return d + ` L${f(l[0])} ${f(l[1])}`;
   };
   const loop = (cx, cy, rx, ry, seed = 1, turns = 1.25) => { const r = rng(seed), n = 28, a0 = -2.3 + r(), pts = []; for (let k = 0; k <= n * turns; k++) { const a = a0 + (Math.PI * 2 * k) / n, s = 1 + (r() - .5) * .07 + k * .0025; pts.push([cx + rx * s * Math.cos(a), cy + ry * s * Math.sin(a)]); } return smooth(pts); };
+  /** a hand-drawn loop with squared-off ends (superellipse), so long words stay clear of the line */
+  const pill = (cx, cy, rx, ry, seed = 1, turns = 1.12, n = 5) => { const r = rng(seed), k = 36, a0 = -2.5 + r() * .5, pts = []; for (let i = 0; i <= k * turns; i++) { const a = a0 + (Math.PI * 2 * i) / k, c = Math.cos(a), sn = Math.sin(a), s = 1 + (r() - .5) * .04 + i * .0016; pts.push([cx + rx * s * Math.sign(c) * Math.pow(Math.abs(c), 2 / n), cy + ry * s * Math.sign(sn) * Math.pow(Math.abs(sn), 2 / n)]); } return smooth(pts); };
   const scrawl = (x, y, w, seed = 2, passes = 2, wob = 3.2) => { const r = rng(seed), pts = [], n = Math.max(6, Math.round(w / 14)); for (let p = 0; p < passes; p++) for (let i = 0; i <= n; i++) { const k = p % 2 ? 1 - i / n : i / n; pts.push([x + w * k, y + p * 3 + (r() - .5) * wob]); } return smooth(pts); };
   const hatch = (x, y, w, h, gap = 8, seed = 3) => { const r = rng(seed), pts = []; for (let i = 0; i <= w; i += gap) { pts.push([x + i + (r() - .5) * 2, y + h], [x + i + gap * .6 + (r() - .5) * 2, y]); } return smooth(pts); };
   const vline = (x, y0, y1, seed = 9, wob = 5) => { const r = rng(seed), pts = [], step = y1 > y0 ? 22 : -22; for (let y = y0; step > 0 ? y <= y1 : y >= y1; y += step) pts.push([x + (r() - .5) * wob, y]); pts.push([x, y1]); return smooth(pts); };
@@ -118,7 +120,7 @@
     if (reduce) setInk(it, 1); else { const t0 = performance.now(); const step = (now) => { const t = Math.min(1, (now - t0 - 250) / 600); setInk(it, Math.max(0, 1 - Math.pow(1 - Math.max(t, 0), 3))); if (t < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
   }
 
-  window.Paper = { NS, reduce, rng, smooth, loop, scrawl, hatch, vline, hline, arrow, check, box, cross, ink, setInk, on, local, clamp, progress,
+  window.Paper = { NS, reduce, rng, smooth, loop, pill, scrawl, hatch, vline, hline, arrow, check, box, cross, ink, setInk, on, local, clamp, progress,
     start() {
       navInk(); collect(); update();
       if (!reduce && document.querySelector('[data-scroll="intro"]')) {

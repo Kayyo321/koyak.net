@@ -216,8 +216,8 @@ out: work/stasha.html
     over.setAttribute('viewBox', `0 0 ${base.width} ${base.height}`);
     const R = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.left - base.left + code.scrollLeft, y: r.top - base.top, w: r.width, h: r.height }; };
     const a = R('n1'), b = R('n2'), c = R('n3');
-    drawn.push(ink(over, loop(a.x + a.w / 2, a.y + a.h / 2, a.w / 2 + 9, a.h / 2 + 5, 41), [.15, .3], { color: 'var(--signal)', width: 2 }));
-    drawn.push(ink(over, loop(b.x + b.w / 2, b.y + b.h / 2, b.w / 2 + 9, b.h / 2 + 5, 42), [.25, .4], { color: 'var(--signal)', width: 2 }));
+    drawn.push(ink(over, Paper.pill(a.x + a.w / 2, a.y + a.h / 2, a.w / 2 + 8, a.h / 2 + 4, 41), [.15, .3], { color: 'var(--signal)', width: 2 }));
+    drawn.push(ink(over, Paper.pill(b.x + b.w / 2, b.y + b.h / 2, b.w / 2 + 8, b.h / 2 + 4, 42), [.25, .4], { color: 'var(--signal)', width: 2 }));
     drawn.push(ink(over, scrawl(c.x, c.y + c.h + 4, c.w, 43, 2, 2.5), [.35, .5], { color: 'var(--signal)', width: 2 }));
     [[a, 1], [b, 2], [c, 3]].forEach(([r, k], i) => {
       const t = document.createElementNS(NS, 'g');

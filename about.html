@@ -33,9 +33,9 @@
 @media (max-width: 760px) { .top { grid-template-columns: 1fr; } .top figure { order: -1; width: 160px; } }
 .top figure { margin: 0; }
 
-.interests { list-style: none; padding: 0; margin: 0 0 var(--line); display: flex; flex-wrap: wrap; gap: 0 clamp(26px, 3vw, 44px); }
+.interests { list-style: none; padding: 0 0 0 14px; margin: 0 0 var(--line); display: flex; flex-wrap: wrap; gap: 0 clamp(54px, 5.5vw, 70px); }
 .interests li { position: relative; font-size: clamp(19px, 1.9vw, 24px); font-weight: 500; letter-spacing: -0.015em; line-height: calc(var(--line) * 2); }
-.interests svg { position: absolute; left: -12px; top: 8px; width: calc(100% + 24px); height: calc(var(--line) * 2 - 16px); overflow: visible; pointer-events: none; }
+.interests svg { max-width: none; position: absolute; left: -18px; top: 0; width: calc(100% + 36px); height: 100%; overflow: visible; pointer-events: none; }
 
 .tl { position: relative; margin: 0 0 var(--line); }
 .tl svg.axis { width: 100%; height: 40px; display: block; overflow: visible; }
@@ -145,11 +145,22 @@
 <script>
 (() => {
   const { ink, loop, hline, NS } = Paper;
-  document.querySelectorAll('#interests li').forEach((li, i) => {
-    const s = document.createElementNS(NS, 'svg'); s.setAttribute('viewBox', '0 0 100 40'); s.setAttribute('preserveAspectRatio', 'none'); s.setAttribute('aria-hidden', 'true'); li.appendChild(s);
-    const frame = document.getElementById('interests'); frame.setAttribute('data-scroll', 'enter');
-    ink(s, loop(50, 20, 48, 17, 30 + i, 1.15), [.1 + i * .1, .3 + i * .1], { color: i % 3 === 1 ? 'var(--signal)' : 'var(--ink)', width: 1.6, fixed: true, filter: false });
-  });
+  const list = document.getElementById('interests'); list.setAttribute('data-scroll', 'enter');
+  let rings = [];
+  function ringInterests() {
+    Paper.drop(rings); rings = [];
+    list.querySelectorAll('li').forEach((li, i) => {
+      let svg = li.querySelector('svg');
+      if (!svg) { svg = document.createElementNS(NS, 'svg'); svg.setAttribute('aria-hidden', 'true'); li.appendChild(svg); }
+      const w = li.offsetWidth + 36, h = li.offsetHeight;
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      rings.push(ink(svg, Paper.pill(w / 2, h / 2, w / 2 - 4, h / 2 - 9, 30 + i), [.1 + i * .1, .3 + i * .1], { color: i % 3 === 1 ? 'var(--signal)' : 'var(--ink)', width: 1.7, filter: false }));
+    });
+    Paper.refresh();
+  }
+  ringInterests();
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(ringInterests, 150); });
+  document.fonts && document.fonts.ready.then(ringInterests);
   const axis = document.getElementById('axis');
   ink(axis, hline(20, 4, 990, 12, 4), [0, .9], { width: 1.6, fixed: true, filter: false });
 })();

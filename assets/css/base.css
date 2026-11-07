@@ -69,7 +69,7 @@ a { color: inherit; text-decoration-line: underline; text-decoration-thickness: 
 .site-nav { display: flex; gap: clamp(18px, 3vw, 34px); font-size: 15.5px; }
 .site-nav a { position: relative; text-decoration: none; padding-block: 4px; }
 .site-nav a[aria-current="page"] { font-weight: 600; }
-.site-nav .nav-ink { position: absolute; left: -4px; right: -4px; bottom: -6px; height: 10px; width: calc(100% + 8px); overflow: visible; pointer-events: none; }
+.site-nav .nav-ink { max-width: none; position: absolute; left: -4px; right: -4px; bottom: -6px; height: 10px; width: calc(100% + 8px); overflow: visible; pointer-events: none; }
 
 /* ---------- footer ---------- */
 .site-foot { margin-top: clamp(40px, 6vw, 80px); border-top: 1px solid var(--ink); }
