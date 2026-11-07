@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Page not found — Koyak</title>
+<meta name="description" content="This page doesn't exist on koyak.net.">
+<meta name="theme-color" content="#F4F2ED">
+<meta property="og:title" content="Page not found — Koyak">
+<meta property="og:description" content="This page doesn't exist on koyak.net.">
+<meta property="og:image" content="https://koyak.net/assets/img/avatar.png">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/png" href="assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/css/base.css">
+<style>
+/* 404: a page torn out of the notebook. */
+.nf .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(24px, 5vw, 70px); align-items: center; padding-block: clamp(30px, 6vw, 90px); }
+@media (max-width: 820px) { .nf .wrap { grid-template-columns: 1fr; } }
+.nf .lede { margin: 24px 0 34px; }
+.nf .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+</style>
+</head>
+<body class="page-404">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="assets/img/avatar.webp" alt="" width="32" height="32">koyak</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="work.html">Work</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<section class="nf" data-scroll="intro">
+  <div class="wrap">
+    <div>
+      <p class="mono quiet">404</p>
+      <h1 class="display">This page was torn out.</h1>
+      <p class="lede">The address doesn't match anything on koyak.net. It may have moved when the site was rebuilt.</p>
+      <div class="actions"><a class="btn" href="/index.html">Go to the home page</a><a class="btn ghost" href="/work.html">Browse the work</a></div>
+    </div>
+    <svg class="art" viewBox="0 0 460 420" aria-hidden="true" id="torn">
+      <rect class="cut" x="40" y="30" width="380" height="360" fill="var(--sheet)"/>
+      <g class="piece" data-p=".1,.7" style="--dx:-30px;--dy:-20px;--r:-6deg"><path class="cut" fill="var(--paper)" d="M120 110 L 170 96 L 215 120 L 268 92 L 330 118 L 344 170 L 320 222 L 340 270 L 300 312 L 236 298 L 184 320 L 132 290 L 112 238 L 130 186 Z"/></g>
+      <text x="196" y="226" style="font: 500 34px var(--mono); fill: var(--graphite)">404</text>
+    </svg>
+  </div>
+</section>
+</main>
+<footer class="site-foot">
+  <div class="wrap">
+    <p class="sign">Working on something close to the metal? I'd like to hear about it.</p>
+    <nav aria-label="Footer">
+      <a href="work.html">Work</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+      <a href="https://github.com/Kayyo321" rel="me noopener">GitHub</a>
+    </nav>
+    <div class="meta mono"><span>&copy; 2026 Koyak</span><span>github.com/Kayyo321</span></div>
+  </div>
+</footer>
+<script src="assets/js/paper.js"></script>
+<script>
+(() => { Paper.ink(document.getElementById('torn'), Paper.loop(228, 206, 140, 132, 44, 1.2), [.6, 1], { color: 'var(--signal)', width: 2.2 }); })();
+</script>
+<script>Paper.start();</script>
+</body>
+</html>

@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OsDev — Koyak</title>
+<meta name="description" content="OsDev is a tiny x86 operating system written from scratch: a 512-byte boot sector, protected mode, a small C kernel and a VGA text driver.">
+<meta name="theme-color" content="#F4F2ED">
+<meta property="og:title" content="OsDev — Koyak">
+<meta property="og:description" content="OsDev is a tiny x86 operating system written from scratch: a 512-byte boot sector, protected mode, a small C kernel and a VGA text driver.">
+<meta property="og:image" content="https://koyak.net/assets/img/avatar.png">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/css/base.css">
+<style>
+/* OsDev: the boot. A live VGA text screen, then a memory map that fills in as the machine boots. */
+.o-hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(24px, 4vw, 64px); align-items: center; padding-block: clamp(24px, 4vw, 56px) clamp(48px, 6vw, 90px); }
+@media (max-width: 900px) { .o-hero .wrap { grid-template-columns: 1fr; } }
+.o-hero .lede { margin-top: 24px; }
+.vga-wrap { position: relative; }
+.vga { position: relative; isolation: isolate; color: var(--paper); padding: clamp(14px, 2vw, 24px); }
+.vga::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--ink); filter: url(#cut); }
+.vga pre { margin: 0; font: 500 clamp(5.4px, .88vw, 11px)/1.12 var(--mono); letter-spacing: 0; white-space: pre; overflow: hidden; }
+.vga .row { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font: 400 12px var(--mono); color: rgba(244,242,237,.55); }
+.vga-wrap svg { position: absolute; inset: -20px; width: calc(100% + 40px); height: calc(100% + 40px); pointer-events: none; overflow: visible; }
+
+.boot .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(30px, 6vw, 90px); }
+.boot .intro { grid-column: 1 / -1; margin-bottom: 4vh; }
+.bsteps { list-style: none; margin: 0; padding: 0; }
+.bsteps li { min-height: 44vh; padding-top: 6vh; transition: opacity .3s ease; }
+.bsteps li:first-child { padding-top: 0; }
+.bsteps h3 { font-size: clamp(24px, 2.6vw, 34px); letter-spacing: -0.03em; margin-bottom: 12px; display: flex; gap: 14px; align-items: baseline; }
+.bsteps h3 span { font: 400 14px var(--mono); color: var(--signal); }
+.bsteps p { color: var(--graphite); }
+.bsteps code { color: var(--ink); }
+.js .bsteps li { opacity: .32; }
+.js .bsteps li.on { opacity: 1; }
+.map-fig { position: sticky; top: 8vh; align-self: start; height: 84vh; display: flex; align-items: center; }
+.map-fig svg { max-height: 100%; }
+@media (max-width: 860px) {
+  .boot .wrap { grid-template-columns: 1fr; }
+  .boot .intro { order: -2; }
+  .map-fig { order: -1; position: sticky; top: 0; z-index: 2; height: auto; background: var(--paper); padding-block: 8px; border-bottom: 1px solid var(--rule); }
+  .map-fig svg { max-height: 36vh; }
+  .bsteps li { min-height: 50vh; }
+}
+.addr { font: 500 15px var(--mono); }
+.reg { font: 500 16px var(--mono); }
+.regsub { font: 400 12.5px var(--mono); }
+
+.tool { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: clamp(30px, 5vw, 80px); align-items: start; }
+@media (max-width: 960px) { .tool { grid-template-columns: 1fr; } }
+.mk { padding: clamp(22px, 3vw, 34px); overflow-x: auto; }
+.mk pre { margin: 0; font-size: clamp(13px, 1.2vw, 15px); line-height: 1.9; }
+.mk .c { color: #8D8980; }
+.mk .hl { box-shadow: inset 0 -2px 0 var(--signal); }
+.flags { list-style: none; margin: 0; padding: 0; border-top: 1.5px solid var(--ink); }
+.flags li { padding: 18px 0; border-bottom: 1px solid var(--rule); }
+.flags code { font-size: 15px; font-weight: 500; }
+.flags p { margin: 6px 0 0; color: var(--graphite); font-size: 16.5px; }
+</style>
+</head>
+<body class="page-osdev">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="../index.html"><img src="../assets/img/avatar.webp" alt="" width="32" height="32">koyak</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="../work.html" aria-current="page">Work</a>
+      <a href="../about.html">About</a>
+      <a href="../contact.html">Contact</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<section class="o-hero" data-scroll="intro">
+  <div class="wrap">
+    <div>
+      <p class="crumb"><a href="../work.html">Work</a><span>/</span><span>Systems</span></p>
+      <h1 class="display">A tiny OS, from the boot sector up.</h1>
+      <p class="lede">OsDev boots an x86 machine from 512 bytes of assembly, switches into 32-bit protected mode and hands over to a small C kernel that writes straight into VGA text memory.</p>
+      <dl class="facts">
+        <div><dt>Role</dt><dd>Author</dd></div>
+        <div><dt>Written in</dt><dd>C, x86 asm</dd></div>
+        <div><dt>Toolchain</dt><dd>nasm, gcc, ld</dd></div>
+        <div><dt>Mode</dt><dd>32-bit protected</dd></div>
+        <div><dt>Started</dt><dd>March 2026</dd></div>
+      </dl>
+    </div>
+    <div class="vga-wrap">
+      <div class="vga" role="img" aria-label="A torus spinning in ASCII characters, the kernel's demo program, recreated in the browser">
+        <pre id="vga" aria-hidden="true"></pre>
+        <div class="row"><span>0xB8000</span><span>80 × 22, x87 fsin and fcos</span></div>
+      </div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" id="vga-ink" aria-hidden="true"></svg>
+    </div>
+  </div>
+</section>
+
+<section class="section boot" id="boot" aria-labelledby="boot-title">
+  <div class="wrap">
+    <div class="intro">
+      <h2 class="title" id="boot-title">What happens at power-on</h2>
+      <p class="lede" style="margin-top:20px">Six steps from the BIOS to a running kernel. The map fills in as each part of memory gets used. It's in address order, not to scale.</p>
+    </div>
+    <ol class="bsteps">
+      <li id="b-0"><h3><span>1</span>The BIOS finds the boot sector</h3><p>The BIOS loads the first 512 bytes of the disk to <code>0x7C00</code> and jumps there. Everything that follows has to start from those 512 bytes.</p></li>
+      <li id="b-1"><h3><span>2</span>A stack, still in real mode</h3><p>The boot sector saves the boot drive number and points <code>bp</code> and <code>sp</code> at <code>0x9000</code>, so it can call its own print routines.</p></li>
+      <li id="b-2"><h3><span>3</span>Load the kernel from disk</h3><p>BIOS interrupt <code>int 0x13</code> reads 15 sectors, starting at sector 2, into memory at <code>0x1000</code>.</p></li>
+      <li id="b-3"><h3><span>4</span>Switch to protected mode</h3><p>Interrupts off with <code>cli</code>, load the GDT with <code>lgdt</code>, set the PE bit in <code>cr0</code>, then a far jump to flush the CPU pipeline into 32-bit code.</p></li>
+      <li id="b-4"><h3><span>5</span>A new stack, then the kernel</h3><p>Segment registers are reloaded and the stack moves up to <code>0x90000</code>. The boot code calls the C kernel's entry point at <code>0x1000</code>.</p></li>
+      <li id="b-5"><h3><span>6</span>Draw to the screen</h3><p>The kernel turns on the x87 FPU by setting bits in <code>cr0</code>, renders the torus with <code>fsin</code> and <code>fcos</code> into an 80 × 22 buffer, and copies it to VGA text memory at <code>0xB8000</code>.</p></li>
+    </ol>
+    <div class="map-fig">
+      <svg class="art" viewBox="0 0 460 650" id="map" role="img" aria-label="Memory map with the BIOS area, kernel at 0x1000, boot sector at 0x7C00, stack at 0x9000, stack at 0x90000 and VGA text memory at 0xB8000">
+        <g id="regions"></g>
+        <text x="20" y="642" style="font: 400 12.5px var(--mono); fill: var(--graphite)">not to scale</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="tool-title">
+  <div class="wrap tool">
+    <div>
+      <h2 class="title" id="tool-title">No libc, no SSE</h2>
+      <p class="lede" style="margin:20px 0 30px">The kernel is built with a cross compiler for a machine with nothing on it yet. Three flags carry most of that weight.</p>
+      <div class="mk sheet">
+<pre><code><span class="c"># Makefile</span>
+CC      = x86_64-elf-gcc
+CFLAGS  = <span class="hl">-ffreestanding</span> <span class="hl">-m32</span> <span class="hl">-mno-sse</span>
+LD      = x86_64-elf-ld
+LDFLAGS = -m elf_i386
+ASM     = nasm
+AFLAGS  = -f bin</code></pre>
+      </div>
+    </div>
+    <ul class="flags">
+      <li><code>-ffreestanding</code><p>There's no hosted C library, so the kernel brings its own memory and formatting helpers.</p></li>
+      <li><code>-m32</code><p>The code runs in 32-bit protected mode, matching the segments the boot sector sets up.</p></li>
+      <li><code>-mno-sse</code><p>Nothing has enabled SSE registers yet. Floating point goes through the x87 FPU, which the kernel initialises itself.</p></li>
+      <li><code>-f bin</code><p>The boot sector is assembled as a flat binary: exactly 512 bytes with no headers.</p></li>
+    </ul>
+  </div>
+  <div class="wrap"><p style="margin-top:34px"><a href="https://github.com/Kayyo321/OsDev" rel="noopener">Source on GitHub</a></p></div>
+</section>
+
+<div class="wrap">
+  <a class="next-case" href="stasha.html"><span class="mono">Next case study</span><strong>stasha</strong><span class="go">A compiled language on LLVM</span></a>
+</div>
+</main>
+<footer class="site-foot">
+  <div class="wrap">
+    <p class="sign">Working on something close to the metal? I'd like to hear about it.</p>
+    <nav aria-label="Footer">
+      <a href="../work.html">Work</a>
+      <a href="../about.html">About</a>
+      <a href="../contact.html">Contact</a>
+      <a href="https://github.com/Kayyo321" rel="me noopener">GitHub</a>
+    </nav>
+    <div class="meta mono"><span>&copy; 2026 Koyak</span><span>github.com/Kayyo321</span></div>
+  </div>
+</footer>
+<script src="../assets/js/paper.js"></script>
+<script>
+(() => {
+  document.documentElement.classList.add('js');
+  const { ink, setInk, box, arrow, NS } = Paper;
+
+  // the kernel's demo, ported line for line: same torus maths, same character ramp
+  const out = document.getElementById('vga');
+  const RAMP = ',.sbwlhdYEUD', W = 80, R = 22, N = W * R;
+  let A = 0, B = 0;
+  function frame() {
+    const b = new Array(N).fill(' '), z = new Float32Array(N);
+    const sA = Math.sin(A), cA = Math.cos(A), sB = Math.sin(B), cB = Math.cos(B);
+    for (let j = 0; j < 6.28; j += 0.07) {
+      const cj = Math.cos(j), sj = Math.sin(j), cj2 = cj + 2;
+      for (let i = 0; i < 6.28; i += 0.02) {
+        const si = Math.sin(i), ci = Math.cos(i), mess = 1 / (si * cj2 * sA + sj * cA + 5), t = si * cj2 * cA - sj * sA;
+        const x = Math.trunc(40 + 30 * mess * (ci * cj2 * cB - t * sB)), y = Math.trunc(12 + 15 * mess * (ci * cj2 * sB + t * cB));
+        const o = x + W * y, n = Math.trunc(8 * ((sj * sA - si * cj * cA) * cB - si * cj * sA - sj * cA - ci * cj * sB));
+        if (R > y && y > 0 && x > 0 && W > x && mess > z[o]) { z[o] = mess; b[o] = RAMP[n > 0 ? n : 0]; }
+      }
+    }
+    let s = ''; for (let r = 0; r < R; r++) s += b.slice(r * W, r * W + W).join('') + '\n';
+    out.textContent = s;
+  }
+  let running = false, last = 0;
+  function tick(now) { if (!running) return; if (now - last > 50) { last = now; A += 0.04; B += 0.02; frame(); } requestAnimationFrame(tick); }
+  frame();
+  if (!Paper.reduce) {
+    new IntersectionObserver(([e]) => { const was = running; running = e.isIntersecting && !document.hidden; if (running && !was) requestAnimationFrame(tick); }).observe(out);
+  }
+  const vi = document.getElementById('vga-ink');
+  ink(vi, 'M2 6 L 2 2 L 8 2 M92 2 L 98 2 L 98 8 M98 92 L 98 98 L 92 98 M8 98 L 2 98 L 2 92', [.5, 1], { color: 'var(--signal)', width: 2.2, fixed: true, filter: false });
+
+  // memory map, high addresses at the top
+  const map = document.getElementById('map'), host = document.getElementById('regions');
+  const regions = [
+    { addr: '0xB8000', name: 'VGA text memory', sub: '80 × 25 cells', fill: 'var(--ink)', txt: 'var(--paper)', step: 5 },
+    { addr: '0x90000', name: 'stack, 32-bit', sub: 'esp', fill: 'var(--sheet)', txt: 'var(--ink)', step: 4 },
+    { addr: '0x9000', name: 'stack, real mode', sub: 'sp', fill: 'var(--sheet)', txt: 'var(--ink)', step: 1 },
+    { addr: '0x7C00', name: 'boot sector', sub: '512 B, GDT', fill: 'var(--signal)', txt: '#fff', step: 0 },
+    { addr: '0x1000', name: 'kernel', sub: '15 sectors', fill: 'var(--ink)', txt: 'var(--paper)', step: 2 },
+    { addr: '0x0000', name: 'BIOS data, IVT', sub: 'firmware', fill: '#CFCBC2', txt: 'var(--ink)', step: -1 },
+  ];
+  const X = 130, RW = 230, RH = 74, GAP = 26, Y0 = 20;
+  const yOf = (k) => Y0 + k * (RH + GAP);
+  regions.forEach((r, k) => {
+    const y = yOf(k);
+    const t = document.createElementNS(NS, 'text'); t.setAttribute('class', 'addr'); t.setAttribute('x', X - 16); t.setAttribute('y', y + RH / 2 + 5); t.setAttribute('text-anchor', 'end'); t.style.fill = 'var(--ink)'; t.textContent = r.addr; host.appendChild(t);
+    ink(map, box(X, y, RW, RH, 70 + k, 4), [0, 1], { color: 'var(--graphite)', width: 1.3, before: host, frame: document.getElementById('boot') });
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'piece');
+    if (r.step >= 0) { g.setAttribute('data-frame', '#b-' + r.step); g.setAttribute('data-p', '.05,.45'); g.setAttribute('style', `--dx:${k % 2 ? 80 : -80}px;--dy:-30px;--r:${k % 2 ? 8 : -8}deg;opacity:min(1, calc(var(--t, 1) * 2.5))`); document.getElementById('b-' + r.step).setAttribute('data-scroll', 'enter'); }
+    g.innerHTML = `<rect class="cut" x="${X}" y="${y}" width="${RW}" height="${RH}" fill="${r.fill}"/><text class="reg" x="${X + 18}" y="${y + 33}" fill="${r.txt}">${r.name}</text><text class="regsub" x="${X + 18}" y="${y + 54}" fill="${r.txt}" opacity=".72">${r.sub}</text>`;
+    host.appendChild(g);
+  });
+  // a pencil pointer for each step, aimed at the region it touches
+  const target = [3, 2, 4, 3, 1, 0];
+  const pointers = target.map((k, i) => ink(map, arrow(450, yOf(k) + RH / 2 - 26 + (i % 2) * 8, X + RW + 10, yOf(k) + RH / 2, 14, 12), [0, 1], { color: 'var(--signal)', width: 2.4, manual: true }));
+  const steps = [...document.querySelectorAll('.bsteps li')];
+  let cur = -1;
+  Paper.on(document.getElementById('boot'), () => {
+    const line = innerHeight * 0.62; let k = 0;
+    steps.forEach((li, i) => { if (li.getBoundingClientRect().top < line) k = i; });
+    steps.forEach((li, i) => li.classList.toggle('on', i === k || Paper.reduce));
+    if (k !== cur) {
+      cur = k;
+      pointers.forEach((p, i) => { if (i !== k) setInk(p, 0); });
+      if (Paper.reduce) setInk(pointers[k], 1);
+      else { const t0 = performance.now(); const step = (now) => { const x = Math.min(1, (now - t0) / 420); setInk(pointers[k], 1 - Math.pow(1 - x, 3)); if (x < 1 && cur === k) requestAnimationFrame(step); }; requestAnimationFrame(step); }
+    }
+  });
+})();
+</script>
+<script>Paper.start();</script>
+</body>
+</html>

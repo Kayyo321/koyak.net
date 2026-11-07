@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Waddle-LSW — Koyak</title>
+<meta name="description" content="Waddle-LSW runs Windows applications as native Wayland windows on Linux, streaming each window out of a lightweight VM over shared memory.">
+<meta name="theme-color" content="#F4F2ED">
+<meta property="og:title" content="Waddle-LSW — Koyak">
+<meta property="og:description" content="Waddle-LSW runs Windows applications as native Wayland windows on Linux, streaming each window out of a lightweight VM over shared memory.">
+<meta property="og:image" content="https://koyak.net/assets/img/avatar.png">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/png" href="../assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/css/base.css">
+<style>
+/* Waddle: windows in transit. Paper windows leave a black VM, cross a red shared-memory bridge and land on a white Linux desktop. */
+.w-hero .wrap { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 64px); align-items: center; padding-block: clamp(24px, 4vw, 56px) clamp(48px, 6vw, 90px); }
+@media (max-width: 860px) { .w-hero .wrap { grid-template-columns: 1fr; } }
+.w-hero .lede { margin-top: 24px; }
+.win-title { font: 500 13px var(--mono); }
+
+.transit { height: 340vh; position: relative; }
+.transit .stage { position: sticky; top: 0; height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding-block: 5vh 6vh; }
+.transit .stage .wrap { width: 100%; }
+.transit h2 { margin-bottom: 8px; }
+.scene { display: flex; align-items: center; min-height: 0; }
+.scene svg { max-height: 62vh; }
+.captions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; list-style: none; margin: 0; padding: 0; }
+.captions li { padding-top: 14px; border-top: 2px solid var(--rule); color: var(--graphite); font-size: 15.5px; line-height: 1.45; transition: border-color .25s ease, color .25s ease; }
+.captions li b { display: block; color: var(--ink); font-size: 17px; margin-bottom: 4px; }
+.captions li.on { border-color: var(--signal); color: var(--ink); }
+@media (max-width: 760px) { .captions { grid-template-columns: 1fr; } .captions li { display: none; } .captions li.on { display: block; } .transit { height: 300vh; } }
+.zone { font: 500 15px var(--mono); }
+
+.cli { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr); gap: clamp(30px, 5vw, 80px); align-items: start; }
+@media (max-width: 960px) { .cli { grid-template-columns: 1fr; } }
+.term { background: var(--ink); color: var(--paper); border-radius: 12px; overflow: hidden; }
+.term .bar { display: flex; gap: 7px; padding: 12px 16px; border-bottom: 1px solid rgba(244,242,237,.12); }
+.term .bar i { width: 10px; height: 10px; border-radius: 50%; background: rgba(244,242,237,.22); }
+.term .bar i:first-child { background: var(--signal); }
+.term dl { margin: 0; padding: 8px 22px 18px; }
+.term dt { font: 400 14.5px var(--mono); padding-top: 16px; overflow-x: auto; white-space: nowrap; }
+.term dt::before { content: "$ "; color: var(--signal); }
+.term dd { margin: 6px 0 0; color: rgba(244,242,237,.62); font-size: 15.5px; }
+
+.principle { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 40px; border-top: 1.5px solid var(--ink); margin-top: 36px; }
+.principle div { padding: 22px 0; border-bottom: 1px solid var(--rule); }
+.principle h3 { font-size: 20px; margin-bottom: 6px; letter-spacing: -0.015em; }
+.principle p { margin: 0; color: var(--graphite); font-size: 16.5px; }
+</style>
+</head>
+<body class="page-waddle">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="../index.html"><img src="../assets/img/avatar.webp" alt="" width="32" height="32">koyak</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="../work.html" aria-current="page">Work</a>
+      <a href="../about.html">About</a>
+      <a href="../contact.html">Contact</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<section class="w-hero" data-scroll="intro">
+  <div class="wrap">
+    <div>
+      <p class="crumb"><a href="../work.html">Work</a><span>/</span><span>Systems</span></p>
+      <h1 class="display">Windows apps, as Linux windows.</h1>
+      <p class="lede">Waddle-LSW is a Linux subsystem for Windows applications. Each Windows app shows up on a Wayland desktop as its own native window, not trapped inside a virtual machine viewer.</p>
+      <dl class="facts">
+        <div><dt>Role</dt><dd>Author</dd></div>
+        <div><dt>Written in</dt><dd>C</dd></div>
+        <div><dt>Host</dt><dd>Linux, Wayland</dd></div>
+        <div><dt>Transport</dt><dd>IVSHMEM</dd></div>
+        <div><dt>Started</dt><dd>October 2026</dd></div>
+      </dl>
+    </div>
+    <svg class="art" viewBox="0 0 520 420" id="hero-art" role="img" aria-label="Two paper application windows overlapping on a desktop">
+      <g class="piece" data-p="0,.5" style="--dx:-120px;--dy:40px;--r:-12deg">
+        <rect class="cut" x="30" y="70" width="300" height="220" fill="var(--sheet)"/>
+        <rect x="30" y="70" width="300" height="34" fill="var(--ink)"/>
+        <text class="win-title" x="46" y="92" fill="var(--paper)">cmd.exe</text>
+        <text x="50" y="140" style="font: 400 14px var(--mono); fill: var(--ink)">C:\&gt; dir</text>
+        <rect x="50" y="156" width="190" height="6" fill="var(--rule)"/><rect x="50" y="172" width="150" height="6" fill="var(--rule)"/><rect x="50" y="188" width="210" height="6" fill="var(--rule)"/>
+      </g>
+      <g class="piece" data-p=".15,.65" style="--dx:140px;--dy:-30px;--r:14deg">
+        <rect class="cut" x="200" y="170" width="290" height="200" fill="var(--sheet)"/>
+        <rect x="200" y="170" width="290" height="34" fill="var(--signal)"/>
+        <text class="win-title" x="216" y="192" fill="#fff">notepad.exe</text>
+        <rect x="220" y="226" width="220" height="6" fill="var(--rule)"/><rect x="220" y="242" width="180" height="6" fill="var(--rule)"/><rect x="220" y="258" width="200" height="6" fill="var(--rule)"/>
+      </g>
+      <text x="300" y="404" style="font: 400 14px var(--mono); fill: var(--graphite)">on a Linux desktop</text>
+    </svg>
+  </div>
+</section>
+
+<section class="transit" id="transit" data-scroll="through" aria-labelledby="transit-title">
+  <div class="stage">
+    <div class="wrap">
+      <h2 class="title" id="transit-title">How a window gets across</h2>
+    </div>
+    <div class="wrap scene">
+      <svg class="art" viewBox="0 0 1000 440" id="scene" role="img" aria-label="Application windows travel from a Windows virtual machine across an IVSHMEM shared memory bridge onto a Wayland desktop">
+        <rect class="cut" x="20" y="40" width="320" height="360" fill="var(--ink)"/>
+        <text class="zone" x="44" y="76" fill="var(--paper)">Windows guest VM</text>
+        <rect class="cut" x="660" y="40" width="320" height="360" fill="var(--sheet)"/>
+        <rect x="660" y="40" width="320" height="30" fill="var(--rule)"/>
+        <text class="zone" x="676" y="61" fill="var(--ink)">Wayland desktop</text>
+        <rect class="cut" x="690" y="290" width="150" height="86" fill="#E7E3DA"/>
+        <text x="702" y="312" style="font: 400 12px var(--mono); fill: var(--graphite)">terminal</text>
+        <rect class="cut" x="330" y="196" width="340" height="48" fill="var(--signal)"/>
+        <text class="zone" x="500" y="226" fill="#fff" text-anchor="middle">IVSHMEM shared memory</text>
+        <g id="travellers"></g>
+      </svg>
+    </div>
+    <div class="wrap">
+      <ol class="captions" id="captions">
+        <li class="on"><b>Track</b>A lightweight Windows guest runs in a VM. Waddle follows each application window inside it individually.</li>
+        <li><b>Capture</b>Each window's surface is captured with hardware acceleration, one window at a time instead of the whole screen.</li>
+        <li><b>Transfer</b>Frames cross the VM boundary through IVSHMEM, a block of memory both sides can read and write.</li>
+        <li><b>Compose</b>On the host, every window becomes a native Wayland surface beside your Linux applications.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="cli-title">
+  <div class="wrap cli">
+    <div>
+      <h2 class="title" id="cli-title">One command</h2>
+      <p class="lede" style="margin-top:20px">The <code>waddle</code> command starts the background services on first use and gives you the guest, a Windows shell or a single program.</p>
+    </div>
+    <div class="term">
+      <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+      <dl>
+        <dt>waddle</dt><dd>Starts the subsystem if it isn't running and opens an interactive Windows ConPTY session.</dd>
+        <dt>waddle exec -- cmd.exe /c "dir C:\\"</dt><dd>Runs one program inside the Windows guest.</dd>
+        <dt>waddle status</dt><dd>Shows the subsystem daemon and VM state. <code>start</code> and <code>stop</code> control it.</dd>
+        <dt>waddle fs test</dt><dd>Checks shared directory mappings and read and write access.</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="build-title" style="padding-top:0">
+  <div class="wrap">
+    <h2 class="title" id="build-title">Built to be rebuilt</h2>
+    <div class="principle">
+      <div><h3>Per-window, not per-screen</h3><p>Tracking individual windows is what lets Windows apps sit next to Linux ones instead of inside a full-screen viewer.</p></div>
+      <div><h3>Shared memory, not a network</h3><p>IVSHMEM gives both sides of the VM boundary the same memory, so frames don't take a trip through a virtual network stack.</p></div>
+      <div><h3>Hermetic builds</h3><p>Every external dependency is a Git submodule, so builds are reproducible and work offline.</p></div>
+    </div>
+    <div class="cmd" style="margin-top:34px"><code id="clone">git clone --recurse-submodules https://github.com/Kayyo321/Waddle-LSW.git</code><button class="copy" type="button" data-copy="git clone --recurse-submodules https://github.com/Kayyo321/Waddle-LSW.git" data-copy-target="#clone">Copy</button></div>
+    <p style="margin-top:18px"><a href="https://github.com/Kayyo321/Waddle-LSW" rel="noopener">Source on GitHub</a></p>
+  </div>
+</section>
+
+<div class="wrap">
+  <a class="next-case" href="osdev.html"><span class="mono">Next case study</span><strong>OsDev</strong><span class="go">A tiny x86 OS from scratch</span></a>
+</div>
+</main>
+<footer class="site-foot">
+  <div class="wrap">
+    <p class="sign">Working on something close to the metal? I'd like to hear about it.</p>
+    <nav aria-label="Footer">
+      <a href="../work.html">Work</a>
+      <a href="../about.html">About</a>
+      <a href="../contact.html">Contact</a>
+      <a href="https://github.com/Kayyo321" rel="me noopener">GitHub</a>
+    </nav>
+    <div class="meta mono"><span>&copy; 2026 Koyak</span><span>github.com/Kayyo321</span></div>
+  </div>
+</footer>
+<script src="../assets/js/paper.js"></script>
+<script>
+(() => {
+  const { ink, scrawl, arrow, local, NS } = Paper;
+  const hero = document.getElementById('hero-art');
+  ink(hero, scrawl(298, 414, 166, 3, 2), [.6, 1], { color: 'var(--signal)', width: 2.2 });
+  ink(hero, 'M120 340 L 150 412 L 160 384 L 188 396 Z', [.5, .9], { width: 2 });
+
+  // windows in transit
+  const scene = document.getElementById('scene'), host = document.getElementById('travellers');
+  const W = 150, H = 104;
+  const wins = [
+    { name: 'cmd.exe', bar: 'var(--ink)', from: [60, 110], to: [700, 96], s0: .62, s1: 1.3 },
+    { name: 'notepad.exe', bar: 'var(--signal)', from: [150, 190], to: [810, 150], s0: .62, s1: 1.05 },
+    { name: 'paint.exe', bar: 'var(--ink)', from: [80, 280], to: [760, 230], s0: .62, s1: .95 },
+  ].map((w, i) => {
+    const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'cut');
+    g.innerHTML = `<rect width="${W}" height="${H}" fill="var(--sheet)"/><rect width="${W}" height="22" fill="${w.bar}"/><text x="10" y="15" style="font: 500 11px var(--mono); fill: ${w.bar === 'var(--signal)' ? '#fff' : 'var(--paper)'}">${w.name}</text><rect x="12" y="38" width="96" height="5" fill="var(--rule)"/><rect x="12" y="52" width="120" height="5" fill="var(--rule)"/><rect x="12" y="66" width="80" height="5" fill="var(--rule)"/>`;
+    host.appendChild(g); return { ...w, g, i };
+  });
+  // a pencil "capture" bracket that appears around the first window during the capture stage
+  const capture = ink(scene, Paper.box(52, 102, W * .62 + 16, H * .62 + 16, 9, 4), [0, 1], { color: 'var(--signal)', width: 2, manual: true });
+
+  const ease = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const caps = [...document.querySelectorAll('#captions li')];
+  const transit = document.getElementById('transit');
+  Paper.on(transit, () => {
+    const r = transit.getBoundingClientRect();
+    const p = Paper.reduce ? 1 : Paper.clamp(-r.top / Math.max(1, r.height - innerHeight));
+    const stage = p < .18 ? 0 : p < .34 ? 1 : p < .7 ? 2 : 3;
+    caps.forEach((li, i) => li.classList.toggle('on', i === stage));
+    Paper.setInk(capture, Paper.reduce ? 0 : local(p, .18, .3) * (p < .4 ? 1 : 0));
+    wins.forEach((w) => {
+      const t = ease(local(p, .32 + w.i * .1, .62 + w.i * .1));
+      // leave the VM, ride the bridge, then land
+      let x, y, s, rot;
+      if (t < .5) { const k = t / .5; x = lerp(w.from[0], 420, k); y = lerp(w.from[1], 220 - H * .3 / 2 - 6, k); s = lerp(w.s0, .3, k); rot = lerp(0, -4, k); }
+      else { const k = (t - .5) / .5; x = lerp(420, w.to[0], k); y = lerp(220 - H * .3 / 2 - 6, w.to[1], k); s = lerp(.3, w.s1 * .9, k); rot = lerp(-4, w.i % 2 ? 2 : -2, k); }
+      w.g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rot.toFixed(2)}) scale(${s.toFixed(3)})`);
+    });
+  });
+})();
+</script>
+<script>Paper.start();</script>
+</body>
+</html>

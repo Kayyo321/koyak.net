@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>About — Koyak</title>
+<meta name="description" content="Koyak is a systems programmer interested in compilers and runtimes, memory safety, operating systems, Linux desktop architecture and autonomous AI tooling.">
+<meta name="theme-color" content="#F4F2ED">
+<meta property="og:title" content="About — Koyak">
+<meta property="og:description" content="Koyak is a systems programmer interested in compilers and runtimes, memory safety, operating systems, Linux desktop architecture and autonomous AI tooling.">
+<meta property="og:image" content="https://koyak.net/assets/img/avatar.png">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/png" href="assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/css/base.css">
+<style>
+/* About: the notebook. One ruled sheet with a red margin; text sits on the lines, interests get circled, years get a timeline. */
+.notebook { --line: 34px; position: relative; margin-top: clamp(8px, 2vw, 24px); padding: calc(var(--line) * 2) clamp(20px, 5vw, 70px) calc(var(--line) * 2) clamp(64px, 11vw, 150px);
+  background-color: var(--sheet);
+  background-image: linear-gradient(to bottom, transparent calc(var(--line) - 1px), #DCE3EA calc(var(--line) - 1px), #DCE3EA var(--line));
+  background-size: 100% var(--line); background-position: 0 calc(var(--line) * 2 - 6px);
+  box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 30px 50px -36px rgba(30,24,12,.5); }
+.notebook::before { content: ""; position: absolute; top: 0; bottom: 0; left: clamp(44px, 8vw, 110px); width: 1.5px; background: var(--signal); opacity: .85; }
+.notebook::after { content: ""; position: absolute; left: clamp(14px, 3vw, 40px); top: 0; bottom: 0; width: 14px; background: radial-gradient(circle at 7px 7px, var(--paper) 6px, transparent 7px) 0 calc(var(--line) * 3) / 14px calc(var(--line) * 6) repeat-y; }
+.notebook p, .notebook li { line-height: var(--line); }
+.notebook h1 { font-size: clamp(44px, 7vw, 92px); line-height: calc(var(--line) * 3); letter-spacing: -0.05em; margin: 0 0 var(--line); }
+.notebook h2 { font-size: clamp(26px, 3vw, 36px); line-height: calc(var(--line) * 2); letter-spacing: -0.03em; margin: calc(var(--line) * 2) 0 var(--line); }
+.notebook .lede { line-height: var(--line); max-width: 30em; color: var(--ink); font-size: clamp(19px, 1.8vw, 23px); margin-bottom: var(--line); }
+.notebook p { max-width: 36em; margin: 0 0 var(--line); }
+.top { display: grid; grid-template-columns: minmax(0, 1fr) clamp(140px, 22vw, 260px); gap: clamp(20px, 4vw, 60px); align-items: start; }
+@media (max-width: 760px) { .top { grid-template-columns: 1fr; } .top figure { order: -1; width: 160px; } }
+.top figure { margin: 0; }
+
+.interests { list-style: none; padding: 0; margin: 0 0 var(--line); display: flex; flex-wrap: wrap; gap: 0 clamp(26px, 3vw, 44px); }
+.interests li { position: relative; font-size: clamp(19px, 1.9vw, 24px); font-weight: 500; letter-spacing: -0.015em; line-height: calc(var(--line) * 2); }
+.interests svg { position: absolute; left: -12px; top: 8px; width: calc(100% + 24px); height: calc(var(--line) * 2 - 16px); overflow: visible; pointer-events: none; }
+
+.tl { position: relative; margin: 0 0 var(--line); }
+.tl svg.axis { width: 100%; height: 40px; display: block; overflow: visible; }
+.years { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; list-style: none; margin: 0; padding: 0; }
+.years > li { position: relative; }
+.years > li::before { content: ""; position: absolute; top: -27px; left: 0; width: 12px; height: 12px; border-radius: 50%; background: var(--signal); }
+@media (max-width: 760px) { .years > li::before { display: none; } }
+.years h3 { font: 500 15px/var(--line) var(--mono); color: var(--signal); margin: 0; }
+.years ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.slip { display: inline-block; background: var(--paper); padding: 0 10px; font-weight: 600; font-size: 16.5px; line-height: 30px; box-shadow: 0 6px 12px -8px rgba(30,24,12,.5); transform: translateY(calc((1 - var(--t, 1)) * -26px)) rotate(var(--rot, 0deg)); opacity: calc(var(--t, 1)); }
+.slip a { text-decoration: none; }
+@media (max-width: 760px) { .years { grid-template-columns: 1fr 1fr; row-gap: var(--line); } .tl svg.axis { display: none; } }
+
+.tools { columns: 2 220px; column-gap: 40px; margin: 0 0 var(--line); padding: 0; list-style: none; }
+.tools li { break-inside: avoid; display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px dotted #C9C4BA; }
+.tools .mono { color: var(--graphite); }
+
+.now { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+.now .mono { color: var(--graphite); }
+</style>
+</head>
+<body class="page-about">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="assets/img/avatar.webp" alt="" width="32" height="32">koyak</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="work.html">Work</a>
+      <a href="about.html" aria-current="page">About</a>
+      <a href="contact.html">Contact</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<div class="wrap">
+  <article class="notebook" data-scroll="through" id="sheet">
+    <div class="top" data-scroll="intro">
+      <div>
+        <h1>Hi, I'm Koyak.</h1>
+        <p class="lede">I'm a systems programmer. I write languages and compilers, small operating systems, and the tools that sit between Linux and the person using it.</p>
+        <p>I started on the web in December 2020 and wrote my first programming language in 2022. Since then I've built a dozen more, plus a bootable kernel, a Windows compatibility layer for Wayland and an encrypted transport. Almost all of it is open source.</p>
+      </div>
+      <figure>
+        <svg class="art" viewBox="0 0 260 280" id="pin" role="img" aria-label="Koyak's avatar taped into the notebook">
+          <defs><clipPath id="pin-clip"><rect x="20" y="30" width="220" height="220"/></clipPath></defs>
+          <g class="piece" data-p=".1,.6" style="--dy:-60px;--r:-12deg"><g transform="rotate(3 130 140)"><rect class="cut" x="10" y="20" width="240" height="240" fill="var(--sheet)"/><image href="assets/img/avatar.png" x="20" y="30" width="220" height="220" clip-path="url(#pin-clip)"/></g></g>
+          <g class="piece" data-p=".45,.8" style="--dy:-30px;--r:20deg"><rect x="86" y="4" width="92" height="30" fill="var(--signal)" opacity=".9" transform="rotate(-5 132 19)"/></g>
+        </svg>
+      </figure>
+    </div>
+
+    <h2>What I'm interested in</h2>
+    <ul class="interests" id="interests">
+      <li>Low-level systems</li>
+      <li>Compilers and runtimes</li>
+      <li>Memory safety</li>
+      <li>Operating systems</li>
+      <li>Linux desktop architecture</li>
+      <li>Autonomous AI tooling</li>
+    </ul>
+
+    <h2>Languages I've built</h2>
+    <div class="tl" id="tl" data-scroll="enter">
+      <svg class="axis" id="axis" viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <ol class="years">
+        <li><h3>2022</h3><ul><li><span class="slip" data-p=".1,.3" style="--rot:-1.5deg"><a href="https://github.com/Kayyo321/MLang" rel="noopener">MLang</a></span></li><li><span class="slip" data-p=".12,.32" style="--rot:1deg"><a href="https://github.com/Kayyo321/Universal-Lexer" rel="noopener">Universal Lexer</a></span></li><li><span class="slip" data-p=".14,.34" style="--rot:-.5deg"><a href="https://github.com/Kayyo321/Hue" rel="noopener">Hue</a></span></li><li><span class="slip" data-p=".16,.36" style="--rot:1.5deg"><a href="https://github.com/Kayyo321/Spring" rel="noopener">Spring</a></span></li><li><span class="slip" data-p=".18,.38" style="--rot:-1deg"><a href="https://github.com/Kayyo321/Web-Lua" rel="noopener">Web-Lua</a></span></li></ul></li>
+        <li><h3>2023</h3><ul><li><span class="slip" data-p=".3,.5" style="--rot:1deg"><a href="https://github.com/Kayyo321/Guppy" rel="noopener">Guppy</a></span></li><li><span class="slip" data-p=".32,.52" style="--rot:-1.5deg"><a href="https://github.com/Kayyo321/JMinsk" rel="noopener">JMinsk</a></span></li><li><span class="slip" data-p=".34,.54" style="--rot:.5deg"><a href="https://github.com/Kayyo321/Astre" rel="noopener">Astre</a></span></li></ul></li>
+        <li><h3>2024</h3><ul><li><span class="slip" data-p=".5,.7" style="--rot:-1deg"><a href="https://github.com/Kayyo321/Plakk" rel="noopener">Plakk</a></span></li><li><span class="slip" data-p=".52,.72" style="--rot:1.5deg"><a href="https://github.com/Kayyo321/Olive" rel="noopener">Olive</a></span></li></ul></li>
+        <li><h3>2026</h3><ul><li><span class="slip" data-p=".7,.9" style="--rot:1deg"><a href="https://github.com/Kayyo321/dscript" rel="noopener">dscript</a></span></li><li><span class="slip" data-p=".72,.92" style="--rot:-1deg;background:var(--ink);color:var(--paper)"><a href="work/stasha.html">stasha</a></span></li></ul></li>
+      </ol>
+    </div>
+
+    <h2>What I write it in</h2>
+    <ul class="tools">
+      <li><span>C</span><span class="mono">kernels, compilers, Waddle</span></li>
+      <li><span>C++</span><span class="mono">interpreters</span></li>
+      <li><span>Rust</span><span class="mono">tools, TorMail, MLTW</span></li>
+      <li><span>Zig</span><span class="mono">RRT</span></li>
+      <li><span>Go</span><span class="mono">CLIs, Guppy</span></li>
+      <li><span>x86 assembly</span><span class="mono">boot code</span></li>
+      <li><span>Java</span><span class="mono">JMinsk, Astre</span></li>
+      <li><span>Swift</span><span class="mono">MSL</span></li>
+      <li><span>LLVM</span><span class="mono">stasha backend</span></li>
+      <li><span>Wayland</span><span class="mono">Waddle host side</span></li>
+    </ul>
+
+    <h2>Right now</h2>
+    <p class="now"><a href="https://github.com/Kayyo321/seraphix" rel="noopener"><strong>seraphix</strong></a><span class="mono">Rust, November 2026</span></p>
+    <p>A Linux-first workbench for investigating AI models, with evidence archives, a shared command line and a development desktop.</p>
+    <p><a href="contact.html">Get in touch</a> if you're working on something similar.</p>
+  </article>
+</div>
+</main>
+<footer class="site-foot">
+  <div class="wrap">
+    <p class="sign">Working on something close to the metal? I'd like to hear about it.</p>
+    <nav aria-label="Footer">
+      <a href="work.html">Work</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+      <a href="https://github.com/Kayyo321" rel="me noopener">GitHub</a>
+    </nav>
+    <div class="meta mono"><span>&copy; 2026 Koyak</span><span>github.com/Kayyo321</span></div>
+  </div>
+</footer>
+<script src="assets/js/paper.js"></script>
+<script>
+(() => {
+  const { ink, loop, hline, NS } = Paper;
+  document.querySelectorAll('#interests li').forEach((li, i) => {
+    const s = document.createElementNS(NS, 'svg'); s.setAttribute('viewBox', '0 0 100 40'); s.setAttribute('preserveAspectRatio', 'none'); s.setAttribute('aria-hidden', 'true'); li.appendChild(s);
+    const frame = document.getElementById('interests'); frame.setAttribute('data-scroll', 'enter');
+    ink(s, loop(50, 20, 48, 17, 30 + i, 1.15), [.1 + i * .1, .3 + i * .1], { color: i % 3 === 1 ? 'var(--signal)' : 'var(--ink)', width: 1.6, fixed: true, filter: false });
+  });
+  const axis = document.getElementById('axis');
+  ink(axis, hline(20, 4, 990, 12, 4), [0, .9], { width: 1.6, fixed: true, filter: false });
+})();
+</script>
+<script>Paper.start();</script>
+</body>
+</html>

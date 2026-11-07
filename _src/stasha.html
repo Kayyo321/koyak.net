@@ -1,0 +1,234 @@
+<!--
+title: stasha — Koyak
+description: stasha is a compiled systems language built on LLVM: a safer, more expressive alternative to C with explicit, compile-time checked memory.
+nav: work
+out: work/stasha.html
+-->
+<style>
+/* stasha: the engineer's graph paper. The pointer permission *rw is cut out large; the compiler pipeline assembles beside the text. */
+.graph { background-image: linear-gradient(rgba(14,14,14,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(14,14,14,.07) 1px, transparent 1px); background-size: 28px 28px; background-position: -1px -1px; }
+.s-hero { border-bottom: 1.5px solid var(--ink); }
+.s-hero .wrap { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 64px); align-items: center; padding-block: clamp(24px, 4vw, 56px) clamp(48px, 6vw, 80px); }
+@media (max-width: 860px) { .s-hero .wrap { grid-template-columns: 1fr; } }
+.s-hero .lede { margin-top: 24px; }
+
+.pipeline .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(30px, 6vw, 90px); }
+.pipeline .intro { grid-column: 1 / -1; margin-bottom: 4vh; }
+.steps { list-style: none; margin: 0; padding: 0; }
+.steps li { min-height: 46vh; padding-top: 8vh; transition: opacity .3s ease; }
+.steps li:first-child { padding-top: 0; }
+.steps h3 { display: flex; align-items: baseline; gap: 14px; font-size: clamp(26px, 2.8vw, 36px); letter-spacing: -0.03em; margin-bottom: 14px; }
+.steps h3 span { font: 400 14px var(--mono); color: var(--signal); }
+.steps p { color: var(--graphite); }
+.js .steps li { opacity: .32; }
+.js .steps li.on { opacity: 1; }
+.pipe-fig { position: sticky; top: 8vh; align-self: start; height: 84vh; display: flex; align-items: center; }
+.pipe-fig svg { max-height: 100%; }
+@media (max-width: 860px) {
+  .pipeline .wrap { grid-template-columns: 1fr; }
+  .pipe-fig { order: -1; position: sticky; top: 0; height: auto; z-index: 2; background: var(--paper); padding-block: 10px; border-bottom: 1px solid var(--rule); }
+  .pipeline .intro { order: -2; }
+  .pipe-fig svg { max-height: 34vh; }
+  .steps li { min-height: 50vh; }
+}
+.blk-label { font: 500 19px var(--mono); }
+.blk-sub { font: 400 13px var(--mono); }
+
+.code-sec .wrap { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr); gap: clamp(30px, 5vw, 80px); align-items: start; }
+@media (max-width: 960px) { .code-sec .wrap { grid-template-columns: 1fr; } }
+.code { position: relative; padding: clamp(22px, 3vw, 36px); overflow-x: auto; }
+.code pre { margin: 0; font-size: clamp(12.5px, 1.25vw, 15px); line-height: 1.75; color: var(--ink); tab-size: 4; }
+.code .c { color: #8D8980; }
+.code .k { font-weight: 500; }
+.code mark { background: none; color: inherit; }
+.code .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.notes { list-style: none; margin: 26px 0 0; padding: 0; display: grid; gap: 18px; }
+.notes li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; color: var(--graphite); font-size: 16.5px; }
+.notes b { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--signal); color: #fff; font: 500 12.5px var(--mono); }
+
+.checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 40px; margin-top: 36px; border-top: 1.5px solid var(--ink); }
+.checks div { padding: 22px 0; border-bottom: 1px solid var(--rule); }
+.checks h3 { font-size: 20px; letter-spacing: -0.015em; margin-bottom: 6px; }
+.checks p { margin: 0; color: var(--graphite); font-size: 16.5px; }
+
+.install { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr); gap: clamp(30px, 5vw, 80px); align-items: start; }
+@media (max-width: 960px) { .install { grid-template-columns: 1fr; } }
+.install .cmds { display: grid; gap: 14px; }
+.install .mono { color: var(--graphite); margin: 0 0 6px; }
+</style>
+
+<section class="s-hero graph" data-scroll="intro">
+  <div class="wrap">
+    <div>
+      <p class="crumb"><a href="../work.html">Work</a><span>/</span><span>Languages</span></p>
+      <h1 class="display">stasha</h1>
+      <p class="lede">A compiled systems language built on LLVM. A safer, more expressive alternative to C, where every pointer says where it lives and what it may do.</p>
+      <dl class="facts">
+        <div><dt>Role</dt><dd>Author</dd></div>
+        <div><dt>Written in</dt><dd>C</dd></div>
+        <div><dt>Backend</dt><dd>LLVM</dd></div>
+        <div><dt>Started</dt><dd>March 2026</dd></div>
+        <div><dt>Runs on</dt><dd>macOS, Linux, Windows</dd></div>
+      </dl>
+    </div>
+    <svg class="art" viewBox="0 0 520 420" id="perm-art" role="img" aria-label="The pointer permission *rw cut out of paper, annotated read and write">
+      <g class="piece" data-p=".05,.5" style="--dy:-120px;--r:-25deg"><text class="cut" x="20" y="300" style="font: 700 260px var(--mono); fill: var(--signal)">*</text></g>
+      <g class="piece" data-p=".15,.6" style="--dy:120px;--r:12deg"><text class="cut" x="170" y="300" style="font: 700 260px var(--mono); fill: var(--ink)">r</text></g>
+      <g class="piece" data-p=".25,.7" style="--dx:120px;--r:-10deg"><text class="cut" x="330" y="300" style="font: 700 260px var(--mono); fill: var(--ink)">w</text></g>
+      <text x="168" y="392" style="font: 400 15px var(--mono); fill: var(--graphite)">read</text>
+      <text x="356" y="392" style="font: 400 15px var(--mono); fill: var(--graphite)">write</text>
+      <text x="22" y="56" style="font: 400 15px var(--mono); fill: var(--graphite)">pointer</text>
+    </svg>
+  </div>
+</section>
+
+<section class="section pipeline" data-scroll="through" aria-labelledby="pipe-title" id="pipeline">
+  <div class="wrap">
+    <div class="intro">
+      <h2 class="title" id="pipe-title">From source to binary</h2>
+      <p class="lede" style="margin-top:20px">The compiler is six stages, each in its own part of the source tree. The safety guarantees all live in one of them.</p>
+    </div>
+    <div>
+      <ol class="steps">
+        <li id="st-0"><h3><span>1</span>Preprocessor</h3><p>Handles imports and conditional compilation before anything is parsed, so platform-specific code never reaches the later stages.</p></li>
+        <li id="st-1"><h3><span>2</span>Lexer</h3><p>Turns source text into tokens, including storage qualifiers like <code>stack</code>, <code>heap</code> and <code>tls</code>, and permission markers like <code>*r</code>, <code>*w</code> and <code>*rw</code>.</p></li>
+        <li id="st-2"><h3><span>3</span>Parser</h3><p>Builds the syntax tree: structs with methods and destructors, tagged enums, pattern matching, <code>defer</code>, inline test blocks and the dotted module system.</p></li>
+        <li id="st-3"><h3><span>4</span>Analysis</h3><p>Where the safety lives. It checks pointer lifetimes, refuses permission widening, catches stack values escaping their scope and flags null dereferences, all at compile time.</p></li>
+        <li id="st-4"><h3><span>5</span>Codegen</h3><p>Lowers the checked tree to LLVM IR with debug info, so stasha inherits LLVM's optimiser and its list of targets.</p></li>
+        <li id="st-5"><h3><span>6</span>Linker</h3><p>Produces native executables plus static and dynamic libraries. C headers import directly, so stasha can be adopted one file at a time inside an existing C project.</p></li>
+      </ol>
+    </div>
+    <div class="pipe-fig">
+      <svg class="art" viewBox="0 0 420 660" id="pipe-art" role="img" aria-label="Diagram of the six compiler stages stacked from source to binary">
+        <text x="60" y="22" style="font: 400 13px var(--mono); fill: var(--graphite)">main.sts</text>
+        <g id="blocks"></g>
+        <text x="60" y="654" style="font: 400 13px var(--mono); fill: var(--graphite)">a.out</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section class="section code-sec" data-scroll="through" aria-labelledby="code-title">
+  <div class="wrap">
+    <div>
+      <h2 class="title" id="code-title">Memory you can read</h2>
+      <p class="lede" style="margin-top:20px">An excerpt from the allocator in stasha's examples. The type of every pointer tells you where it lives and what you can do with it.</p>
+      <ol class="notes">
+        <li><b>1</b><span><code>heap</code> is the storage class. Heap memory is explicit and freed automatically at scope exit.</span></li>
+        <li><b>2</b><span><code>*rw</code> is the permission: this pointer may be read and written. Widening a read-only pointer is a compile error.</span></li>
+        <li><b>3</b><span>Functions return values and errors side by side, and errors are ordinary values.</span></li>
+      </ol>
+    </div>
+    <div class="code sheet" id="code">
+<pre><code><span class="c">// examples/allocator.sts</span>
+<span class="k">ext fn</span> alloc_bytes(u64 size): <mark id="n3">[<mark id="n1">heap</mark> u8 <mark id="n2">*rw</mark>, error]</mark> {
+    heap u8 *rw ptr = new.(size);
+    <span class="k">if</span> ptr == nil {
+        <span class="k">ret</span> nil, error.(<span class="c">"tracked allocator: allocation failed for {} bytes"</span>, size);
+    }
+
+    this.allocations += 1;
+    this.live_bytes += size;
+    <span class="k">if</span> this.live_bytes &gt; this.peak_bytes {
+        this.peak_bytes = this.live_bytes;
+    }
+
+    <span class="k">ret</span> ptr, nil;
+}</code></pre>
+      <svg class="overlay" id="code-ink" aria-hidden="true"></svg>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="safe-title">
+  <div class="wrap">
+    <h2 class="title" id="safe-title">Checked before it runs</h2>
+    <div class="checks">
+      <div><h3>Pointer lifetime</h3><p>A pointer can't outlive the storage it points into.</p></div>
+      <div><h3>Permission widening</h3><p>A read-only pointer can't quietly become writable.</p></div>
+      <div><h3>Stack escape</h3><p>Stack memory can't be returned or stored past its scope.</p></div>
+      <div><h3>Null dereference</h3><p>Possible nil values have to be handled before use.</p></div>
+      <div><h3>No hidden allocation</h3><p>No garbage collector and no implicit heap use, so performance stays predictable.</p></div>
+      <div><h3>C interop</h3><p>Import C headers and call C libraries directly over the C ABI.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="try-title">
+  <div class="wrap install">
+    <div>
+      <h2 class="title" id="try-title">Try it</h2>
+      <p class="quiet" style="margin-top:18px">The installers fetch a prebuilt binary from GitHub Releases and add <code>stasha</code> to your PATH.</p>
+      <p><a href="https://github.com/Kayyo321/stasha" rel="noopener">Source on GitHub</a></p>
+    </div>
+    <div class="cmds">
+      <div><p class="mono">macOS and Linux</p><div class="cmd"><code id="cmd-sh">curl -fsSL https://raw.githubusercontent.com/Kayyo321/stasha/main/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://raw.githubusercontent.com/Kayyo321/stasha/main/install.sh | sh" data-copy-target="#cmd-sh">Copy</button></div></div>
+      <div><p class="mono">Windows PowerShell</p><div class="cmd"><code id="cmd-ps">irm https://raw.githubusercontent.com/Kayyo321/stasha/main/install.ps1 | iex</code><button class="copy" type="button" data-copy="irm https://raw.githubusercontent.com/Kayyo321/stasha/main/install.ps1 | iex" data-copy-target="#cmd-ps">Copy</button></div></div>
+      <div><p class="mono">Check the install</p><div class="cmd"><code id="cmd-v">stasha --version</code><button class="copy" type="button" data-copy="stasha --version" data-copy-target="#cmd-v">Copy</button></div></div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <a class="next-case" href="waddle.html"><span class="mono">Next case study</span><strong>Waddle</strong><span class="go">Windows apps on Wayland</span></a>
+</div>
+
+<script>
+(() => {
+  document.documentElement.classList.add('js');
+  const { ink, box, arrow, loop, scrawl, NS } = Paper;
+
+  const perm = document.getElementById('perm-art');
+  ink(perm, arrow(70, 66, 90, 120, -16), [.55, .8], { width: 1.8 });
+  ink(perm, scrawl(166, 404, 46, 3, 2), [.65, .9], { color: 'var(--signal)', width: 2.2 });
+  ink(perm, scrawl(354, 404, 54, 4, 2), [.7, .95], { color: 'var(--signal)', width: 2.2 });
+
+  // pipeline: sketch first, then paper blocks land one per step
+  const pipe = document.getElementById('pipe-art'), blocks = document.getElementById('blocks');
+  const stages = [['preprocessor', 'imports, #if'], ['lexer', 'tokens'], ['parser', 'syntax tree'], ['analysis', 'safety checks'], ['codegen', 'LLVM IR'], ['linker', 'exe, .a, .so']];
+  const n = stages.length, H = 70, GAP = 34, Y0 = 40;
+  stages.forEach(([name, sub], i) => {
+    const y = Y0 + i * (H + GAP), x = 60, w = 300;
+    ink(pipe, box(x, y, w, H, 60 + i), [0, .05], { width: 1.5, color: 'var(--graphite)', before: blocks });
+    if (i < n - 1) ink(pipe, arrow(210, y + H + 6, 210, y + H + GAP - 6, 6, 8), [.02, .06], { width: 1.5, color: 'var(--graphite)', before: blocks });
+    const fill = i === 3 ? 'var(--signal)' : 'var(--ink)', txt = i === 3 ? '#fff' : 'var(--paper)';
+    const g = document.createElementNS(NS, 'g');
+    const st = document.getElementById('st-' + i); st.setAttribute('data-scroll', 'enter');
+    g.setAttribute('class', 'piece'); g.setAttribute('data-frame', '#st-' + i); g.setAttribute('data-p', '.05,.45');
+    g.setAttribute('style', `--dx:${i % 2 ? 110 : -110}px;--dy:-50px;--r:${i % 2 ? 10 : -10}deg;opacity:min(1, calc(var(--t, 1) * 2.5))`);
+    g.innerHTML = `<rect class="cut" x="${x}" y="${y}" width="${w}" height="${H}" fill="${fill}"/><text class="blk-label" x="${x + 24}" y="${y + 43}" fill="${txt}">${name}</text><text class="blk-sub" x="${x + w - 22}" y="${y + 42}" fill="${txt}" text-anchor="end" opacity=".75">${sub}</text>`;
+    blocks.appendChild(g);
+  });
+  ink(pipe, loop(210, Y0 + 3 * (H + GAP) + H / 2, 196, 56, 12, 1.15), [.5, .8], { color: 'var(--signal)', width: 2.2, frame: document.getElementById('st-3') });
+  const steps = [...document.querySelectorAll('.steps li')];
+  Paper.on(document.getElementById('pipeline'), () => {
+    const line = innerHeight * 0.62; let k = 0;
+    steps.forEach((li, i) => { if (li.getBoundingClientRect().top < line) k = i; });
+    steps.forEach((li, i) => li.classList.toggle('on', i === k || Paper.reduce));
+  });
+
+  // code annotations, measured from the real text so they stay put at any width
+  const code = document.getElementById('code'), over = document.getElementById('code-ink');
+  let drawn = [];
+  function annotate() {
+    Paper.drop(drawn.filter((d) => d.len)); drawn.forEach((d) => d.el.remove()); drawn = [];
+    const base = code.getBoundingClientRect();
+    over.setAttribute('viewBox', `0 0 ${base.width} ${base.height}`);
+    const R = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.left - base.left + code.scrollLeft, y: r.top - base.top, w: r.width, h: r.height }; };
+    const a = R('n1'), b = R('n2'), c = R('n3');
+    drawn.push(ink(over, loop(a.x + a.w / 2, a.y + a.h / 2, a.w / 2 + 9, a.h / 2 + 5, 41), [.15, .3], { color: 'var(--signal)', width: 2 }));
+    drawn.push(ink(over, loop(b.x + b.w / 2, b.y + b.h / 2, b.w / 2 + 9, b.h / 2 + 5, 42), [.25, .4], { color: 'var(--signal)', width: 2 }));
+    drawn.push(ink(over, scrawl(c.x, c.y + c.h + 4, c.w, 43, 2, 2.5), [.35, .5], { color: 'var(--signal)', width: 2 }));
+    [[a, 1], [b, 2], [c, 3]].forEach(([r, k], i) => {
+      const t = document.createElementNS(NS, 'g');
+      const cx = k === 3 ? r.x + r.w + 18 : r.x + r.w / 2, cy = k === 3 ? r.y + r.h + 6 : r.y - 16;
+      t.innerHTML = `<circle cx="${cx}" cy="${cy}" r="10" fill="var(--signal)"/><text x="${cx}" y="${cy + 4}" text-anchor="middle" style="font: 500 11px var(--mono); fill: #fff">${k}</text>`;
+      over.appendChild(t); drawn.push({ el: t });
+    });
+    Paper.refresh();
+  }
+  annotate();
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(annotate, 150); });
+  document.fonts && document.fonts.ready.then(annotate);
+})();
+</script>
