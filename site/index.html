@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>koyak.net</title>
+  <meta name="theme-color" content="#070936">
+  <link rel="preload" href="fonts/BigShoulders-Bold.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="fonts/IBMPlexMono-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="stage">
+    <div class="masthead">
+    <h1 class="mark" aria-label="koyak.net">
+      <span class="koyak" id="koyak" aria-hidden="true">koyak<canvas id="koyak-canvas"></canvas></span><span class="net" aria-hidden="true">.net</span>
+    </h1>
+
+    <figure class="writer" id="writer">
+      <canvas id="writer-canvas" role="img" aria-label="A typewriter. The sheet is blank. Type to write on it."></canvas>
+      <textarea id="writer-input" class="writer-input" aria-label="Type on the typewriter" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+    </figure>
+    </div>
+
+    <figure class="plate" id="plate">
+      <canvas id="plate-canvas" role="img" aria-label="The koyak mascot: a halftone portrait in two profiles, printed in ultramarine dots inside a ring of registration marks."></canvas>
+      <img class="plate-fallback" src="assets/plate-fallback.png" alt="The koyak mascot: a halftone portrait in two profiles, printed in ultramarine dots." hidden>
+    </figure>
+  </main>
+
+  <script src="plate.js"></script>
+  <script src="koyak.js"></script>
+  <script src="typewriter.js"></script>
+</body>
+</html>

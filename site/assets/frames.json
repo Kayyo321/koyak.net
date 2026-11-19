@@ -1,0 +1,7 @@
+{
+  "open": "assets/face-open.jpg",
+  "blink-half": "assets/face-blink-half.jpg",
+  "blink-closed": "assets/face-blink-closed.jpg",
+  "sleep-half": "assets/face-sleep-half.jpg",
+  "sleep": "assets/face-sleep.jpg"
+}
