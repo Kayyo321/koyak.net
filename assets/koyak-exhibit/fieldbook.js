@@ -6,7 +6,7 @@ const q=s=>root.querySelector(s),qa=s=>Array.from(root.querySelectorAll(s));
 const panel=q('.kx-instrument'), entries=qa('.kx-entry'), index=qa('.kx-index a'), pins=qa('.kx-pin');
 const machine=q('#kx-machine'), map=q('#kx-map'), ghost=q('#kx-ghost'), track=q('#kx-track'), rider=q('#kx-rider'), book=q('#kx-book'), leaf=q('#kx-leaf'), pinGroup=q('#kx-pins'),leaders=q('#kx-leaders');
 const layers=[0,1,2,3].map(i=>q('#kx-layer'+i)),meter=q('.kx-meter i'),cap=q('#kx-caption'),fig=q('#kx-fig');
-const caps=['Fig. 01 — Exploded assembly','Fig. 02 — Survey of four projects','Fig. 03 — Before the prompt'];
+const caps=['Exploded assembly','Project atlas','Boot notes'];
 const m=matchMedia('(prefers-reduced-motion: reduce)'), small=matchMedia('(max-width:850px)'),short=matchMedia('(max-height:540px)');
 let ys=[],raf=0,dirty=true,len=track.getTotalLength(),last=-1,access=null,prev=-10;
 const cut=x=>Math.max(0,Math.min(1,x)),ease=x=>{x=cut(x);return x*x*(3-2*x)},ramp=(v,a,b)=>ease((v-a)/(b-a));
