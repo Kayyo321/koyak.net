@@ -3,3 +3,10 @@ __pycache__/
 *.pyc
 .wrangler/
 .dev.vars
+
+# the story: plaintext pack, acceptance inputs and local secrets never leave this machine
+private/
+node_modules/
+dist/
+.dev.vars.*
+!.dev.vars.example

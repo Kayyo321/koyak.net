@@ -291,12 +291,13 @@
   const kick = () => { if (!raf && state.visible) raf = requestAnimationFrame(frame); };
 
   canvas.addEventListener("pointermove", (e) => {
+    if (state.held) return; // she is holding a look; the loupe is hers for a moment
     const r = canvas.getBoundingClientRect();
     state.mouse = [(e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height];
     state.lensTarget = e.pointerType === "touch" ? 0 : 1;
     kick();
   });
-  canvas.addEventListener("pointerleave", () => { state.lensTarget = 0; kick(); });
+  canvas.addEventListener("pointerleave", () => { if (!state.held) { state.lensTarget = 0; kick(); } });
   window.addEventListener("koyak:ripple", kick);
   new IntersectionObserver(([e]) => { state.visible = e.isIntersecting; kick(); }).observe(canvas);
   document.addEventListener("visibilitychange", () => { state.visible = !document.hidden; kick(); });
@@ -423,6 +424,33 @@
     activity();
   }
   window.addEventListener("koyak:talk", (e) => (e.detail && e.detail.talking ? startTalk() : stopTalk()));
+
+  /* ---------- a held look (koyak:face { cue, ms }): "gaze" and "smile" ---------- */
+  // a portrait named for the cue in frames.json is used when there is one. Without it, "gaze" brings the loupe to
+  // rest on her front-facing eye, lifting the screen off it, and "smile" lowers her eyes, contented.
+  const EYE = [0.576, 0.541]; // the front profile's eye, in plate coordinates (y up)
+  async function hold(cue, ms) {
+    if (face.talking) stopTalk();
+    face.gen++; face.busy = true; face.tweening = false;
+    const gen = face.gen;
+    clearTimeout(idleTimer); setMode(cue);
+    if (face.tex[cue]) {
+      await fade(cue, 420, 1);
+      if (gen === face.gen) await wait(ms);
+      if (gen === face.gen) await fade("open", 600, 1);
+    } else if (cue === "gaze") {
+      if (face.from !== "open") cut("open");
+      state.held = true; state.mouse = EYE.slice(); state.lensTarget = 1; kick();
+      await wait(ms);
+      state.held = false; state.lensTarget = 0; kick();
+    } else if (cue === "smile" && face.tex["sleep-half"]) {
+      await fade("sleep-half", 1100, 1);
+      if (gen === face.gen) await wait(ms);
+      if (gen === face.gen) await fade("open", 1100, 1);
+    }
+    if (gen === face.gen) { face.busy = false; setMode("awake"); activity(); }
+  }
+  window.addEventListener("koyak:face", (e) => { if (e.detail && e.detail.cue) hold(e.detail.cue, e.detail.ms || 2000); });
 
   let idleTimer = 0;
   function activity() {

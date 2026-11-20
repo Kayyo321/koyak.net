@@ -1,0 +1,18 @@
+{
+  "name": "koyak-net",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 4317",
+    "dev:fixture": "wrangler dev --port 4317 --var STORY_FIXTURE:1",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "test": "node --test tests/story/*.test.mjs",
+    "story:keygen": "node scripts/seal-story.mjs keygen",
+    "story:seal": "node scripts/seal-story.mjs seal",
+    "story:check": "node scripts/seal-story.mjs check",
+    "story:secret": "node scripts/seal-story.mjs key | wrangler secret put STORY_PACK_KEY"
+  },
+  "devDependencies": {
+    "wrangler": "4.165.0"
+  }
+}

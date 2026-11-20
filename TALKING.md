@@ -73,7 +73,8 @@ Tips for changing it:
 | `ratelimits[0].simple.limit` | `8` per 60 s | Replies per visitor IP per minute. |
 | `MAX_TURNS` in `worker/index.js` | `16` | How many recent messages are sent as memory. |
 
-The conversation only lives in the visitor's open tab. Reloading the page starts a fresh sheet.
+The conversation only lives in the visitor's open tab. Reloading the page starts a fresh sheet. (The one
+exception is the layer described in `STORY.md`, which keeps a little per-visitor state on the server.)
 
 ## 5. Checking it works
 

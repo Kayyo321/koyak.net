@@ -17,5 +17,9 @@
   "ratelimits": [
     { "name": "LIMITER", "namespace_id": "4317", "simple": { "limit": 8, "period": 60 } }
   ],
+  // one small Durable Object per visitor holds what the site remembers about them (worker/story/visitor.js)
+  "durable_objects": { "bindings": [{ "name": "VISITORS", "class_name": "Visitor" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Visitor"] }],
+  // STORY_PACK_KEY is a secret too (`npm run story:secret`), never here
   "observability": { "enabled": true }
 }

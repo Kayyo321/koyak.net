@@ -226,8 +226,9 @@
         const gx = M.print.x0 + (g.col + 0.5) * colW() + x;
         const gy = M.print.y + g.line * M.print.line - feedNow(now);
         if (gy < -HEAD - 60 || gy > M.paper.feed + 60) continue;
-        ctx.fillStyle = g.ai ? "#0ff" : "#0f0"; // blue channel marks koyak.net's own words
-        drawGlyph(ctx, g, gx, gy);
+        ctx.fillStyle = g.her ? "#0ff" : "#0f0"; // blue channel marks koyak.net's ink
+        if (g.lift) { const k = (now - g.lift) / 220; if (k >= 1) continue; ctx.globalAlpha = 1 - k; drawGlyph(ctx, g, gx, gy - k * 4); ctx.globalAlpha = 1; }
+        else drawGlyph(ctx, g, gx, gy);
       }
     }
     ctx.restore();
@@ -237,7 +238,8 @@
   function drawGlyph(ctx, g, x, y) {
     ctx.save();
     ctx.translate(x + g.dx, y + g.dy); ctx.rotate(g.rot); ctx.scale(g.sc, g.sc);
-    ctx.globalAlpha = g.a * 0.8; ctx.fillText(g.ch, 0, 0);
+    const fade = ctx.globalAlpha;
+    ctx.globalAlpha = fade * g.a * 0.8; ctx.fillText(g.ch, 0, 0);
     // a hair of extra weight, so the dithered strokes stay readable at small sizes
     ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = fontPx() * 0.05; ctx.lineJoin = "round"; ctx.strokeText(g.ch, 0, 0);
     const f = fontPx();
@@ -245,7 +247,7 @@
     if (g.side === 0) ctx.rect(-f, -f, f, 2 * f); else if (g.side === 1) ctx.rect(0, -f, f, 2 * f);
     else if (g.side === 2) ctx.rect(-f, -f, 2 * f, f * 0.62); else ctx.rect(-f, -f * 0.38, 2 * f, f);
     ctx.clip();
-    ctx.globalAlpha = g.a * 0.22; ctx.fillText(g.ch, 0, 0);
+    ctx.globalAlpha = fade * g.a * 0.22; ctx.fillText(g.ch, 0, 0);
     ctx.restore();
     if (g.ghost) { ctx.save(); ctx.globalAlpha = 0.16; ctx.translate(x + g.dx + g.ghost[0], y + g.dy + g.ghost[1]); ctx.rotate(g.rot); ctx.fillText(g.ch, 0, 0); ctx.restore(); }
   }
@@ -335,7 +337,7 @@
   function busy(now) {
     return state.develop < 1 || now - mood.t0 < mood.ms || now - page.feedT0 < T.feed || now - page.jamT0 < 240 ||
       anims.keys.some((a) => now - a.t0 < T.release) || anims.bars.some((a) => now - a.t0 < T.down) ||
-      now - anims.space < T.release || page.glyphs.some((g) => g.at > now - 20);
+      now - anims.space < T.release || page.glyphs.some((g) => g.at > now - 20 || (g.lift && now - g.lift < 240));
   }
   function frame() {
     raf = 0;
@@ -397,7 +399,7 @@
     page.ink = true;
     if (!ai) { draft.lines[draft.lines.length - 1][col] = ch; draftChanged(); }
     const g = {
-      ch, ai, line: 0, col, at: reduce.matches ? 0 : now + T.up,
+      ch, ai, her: ai !== swapped, line: 0, col, at: reduce.matches ? 0 : now + T.up,
       rot: rand(-0.03, 0.03), dx: rand(-1.1, 1.1), dy: rand(-1.3, 1.3), sc: rand(0.985, 1.02),
       a: rand(0.8, 1), side: Math.floor(Math.random() * 4),
       ghost: Math.random() < 0.12 ? [rand(-1.2, 1.2), rand(-0.8, 0.8)] : null,
@@ -414,6 +416,15 @@
     kick();
   }
   function back() { if (M && page.col > 0) { page.col--; kick(); } }
+  function lift() {
+    if (!M || page.col <= 0) return;
+    page.col--;
+    const now = clock.now();
+    const g = page.glyphs.find((x) => x.line === 0 && x.col === page.col && !x.lift);
+    if (g) { g.lift = reduce.matches ? now - 1000 : now; setTimeout(() => { page.glyphs = page.glyphs.filter((x) => x !== g); describe(); }, 260); }
+    sound()?.lift();
+    anims.space = now; describe(); kick();
+  }
   function ret() {
     if (!M) return;
     const now = clock.now();
@@ -456,9 +467,10 @@
     return true;
   }
   window.addEventListener("keydown", (e) => {
-    if (e.target !== sink && e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
+    if (e.target !== sink && e.target.closest && e.target.closest("input, textarea, select, [contenteditable], [data-own-keys]")) return;
+    if (document.documentElement.dataset.paper === "open") return; // a sheet is in the visitor's hands
     // Enter / Space on a focused card must activate it, not feed the typewriter
-    if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest(".cards, .send, .mute")) return;
+    if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest(".cards, .send, .mute, .shelf")) return;
     if (e.repeat) { if (e.key.length === 1 || e.key === "Enter" || e.key === " ") e.preventDefault(); return; }
     if (handleKey(e)) e.preventDefault();
   });
@@ -499,6 +511,9 @@
   const draft = { lines: [[]] };
   const history = []; // { role, content }, the conversation so far (the Worker keeps only the latest few)
   let turn = "you";    // "you" | "ai": while it is koyak.net's turn, nothing the visitor does reaches the machine
+  let swapped = false; // when the hands trade places, so do the inks and the machine's colour
+  let pace = 1;        // how fast her hands go; the server says when she knows the words by heart
+  let retry = null;    // { text, turn }: a turn the line dropped, kept so pressing send again doesn't lose it
   const sendBtn = document.getElementById("writer-send");
   const live = document.getElementById("writer-status");
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -510,7 +525,7 @@
   }
   function draftChanged() {
     if (!sendBtn) return;
-    const empty = !draftText();
+    const empty = !draftText() && !retry;
     sendBtn.disabled = turn !== "you" || empty;
     sendBtn.classList.toggle("is-empty", turn === "you" && empty); // the plane waits at half strength
   }
@@ -560,13 +575,14 @@
     else if (/[,;:]/.test(prev)) d += 120 + Math.random() * 200;
     if (prev && prev === ch) d *= 0.7;                                                // a doubled letter comes quick
     if (Math.random() < 0.04) d += 250 + Math.random() * 500;                         // a hesitation
-    return d;
+    return d * pace;
   }
 
   const BREAK = 330; // ms without a keystroke that counts as a pause in her speech
   const talk = (talking) => window.dispatchEvent(new CustomEvent("koyak:talk", { detail: { talking } }));
   async function typeOut(text) {
     const lines = layout(text);
+    if (!lines.length) return;
     // her voice rises toward the end of a question: for each letter, is the sentence it belongs to one?
     const flat = lines.join(" ");
     let pos = 0;
@@ -588,10 +604,44 @@
     talk(false);
   }
 
+  // the same keys, carrying on along the line she is on (a correction, say), wrapping at the margin
+  async function typeOn(text) {
+    talk(true);
+    let prev = "";
+    for (const ch of text) {
+      if (page.col >= M.print.cols) { talk(false); await carriage(); talk(true); }
+      const d = keyDelay(prev, ch);
+      if (d >= BREAK) { talk(false); await wait(d); talk(true); } else await wait(d);
+      sound()?.say(ch, { question: ch === "?" });
+      if (ch === " ") space(); else type(ch, true);
+      prev = ch;
+    }
+    await wait(reduce.matches ? 0 : T.down);
+    talk(false);
+  }
+  // what the server sends back is a short script: lines to type, a pause, a correction, an effect on the page
+  async function perform(steps) {
+    let said = ""; // what she ends up having said, corrections included
+    for (const st of steps || []) {
+      if (st.say) {
+        if (page.col > 0 || page.ink) await carriage(); // each new line of hers starts on a fresh line
+        await typeOut(st.say); said += (said ? " " : "") + st.say;
+      } else if (st.type) { await typeOn(st.type); said += st.type; }
+      else if (st.erase) { for (let i = 0; i < st.erase; i++) { lift(); await wait(reduce.matches ? 30 : 110 + Math.random() * 60); } said = said.slice(0, -st.erase); }
+      else if (st.pause) await wait(reduce.matches ? Math.min(st.pause, 250) : st.pause);
+      else if (st.fx) await fx(st.fx);
+    }
+    return said.replace(/\s+/g, " ").trim();
+  }
+  async function fx(f) {
+    if (f.t === "swap") { swapped = !!f.on; canvas.dataset.hands = swapped ? "swapped" : ""; setMood(turn === "you" ? (swapped ? 1 : 0) : (swapped ? 0 : 1)); return; }
+    if (window.koyakPaper && window.koyakPaper.fx) await window.koyakPaper.fx(f);
+  }
+
   function setTurn(t) {
     turn = t;
     canvas.dataset.turn = t;
-    setMood(t === "you" ? 0 : 1);
+    setMood((t === "you") === !swapped ? 0 : 1);
     window.dispatchEvent(new CustomEvent("koyak:turn", { detail: { turn: t } })); // plane.js throws / rebuilds the airplane
     if (t !== "you") { anims.keys = []; canvas.style.cursor = "wait"; } else canvas.style.cursor = "";
     draftChanged();
@@ -601,40 +651,74 @@
     "no-key": "i'm here. i just can't find my voice yet.",
     rate: "slow down. my keys are still warm. try me again in a minute.",
     other: "the line went quiet for a second. say that again?",
+    retry: "the line went quiet. throw the plane again and i'll catch it this time.",
   };
-  async function ask() {
+  const newTurn = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
+  async function ask(turnId) {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 60000);
     try {
       const r = await fetch("api/chat", {
         method: "POST", headers: { "content-type": "application/json" }, signal: ctl.signal,
-        body: JSON.stringify({ messages: history.slice(-16) }),
+        body: JSON.stringify({ messages: history.slice(-16), turn: turnId }),
       });
       const data = await r.json().catch(() => ({}));
-      if (r.ok && data.reply) return { reply: data.reply };
-      return { reply: SILENCE[data.error] || SILENCE.other, failed: true };
+      if (r.ok && (data.reply || data.steps)) return data;
+      // the model being away is an answer; a dropped line is not, and the turn is kept to send again
+      if (data.error === "no-key" || data.error === "rate") return { reply: SILENCE[data.error], failed: true };
+      return { reply: SILENCE.retry, failed: true, retry: true };
     } catch (_) {
-      return { reply: SILENCE.other, failed: true };
+      return { reply: SILENCE.retry, failed: true, retry: true };
     } finally { clearTimeout(timer); }
   }
+  const story = (detail) => window.dispatchEvent(new CustomEvent("koyak:story", { detail }));
 
   async function send() {
     if (!M || turn !== "you") return;
-    const text = draftText();
+    const typed = draftText();
+    const text = typed || (retry && retry.text);
     if (!text) { page.jamT0 = clock.now(); kick(); return; }
+    const turnId = !typed && retry ? retry.turn : newTurn();
+    retry = null;
     setTurn("ai");
     if (live) live.textContent = "koyak.net is typing";
-    history.push({ role: "user", content: text });
+    if (history[history.length - 1]?.content !== text || history[history.length - 1]?.role !== "user") history.push({ role: "user", content: text });
     draft.lines = [[]];
-    const answer = ask();            // the request and the carriage returns happen together
+    const answer = ask(turnId);      // the request and the carriage returns happen together
     await gap();
-    const { reply, failed } = await answer;
-    if (!failed) history.push({ role: "assistant", content: reply });
-    await typeOut(reply);
+    const data = await answer;
+    if (data.mode) pace = data.mode === "scene" || data.mode === "coda" ? 0.6 : 1;
+    if (data.planes || data.mode) story({ mode: data.mode, planes: data.planes });
+    let said;
+    if (data.steps) said = await perform(data.steps);
+    else { said = data.reply; await typeOut(data.reply); }
+    if (data.retry) retry = { text, turn: turnId };
+    else if (!data.failed && said) history.push({ role: "assistant", content: said });
     await gap();
     draft.lines = [[]];
     setTurn("you");
-    if (live) live.textContent = "koyak.net wrote: " + reply;
+    if (live) live.textContent = "koyak.net wrote: " + said;
     describe();
+  }
+  // her own turn, unprompted: a greeting, picking up where a story left off, a question after a page turn
+  let saying = null;
+  function say(steps, { mode } = {}) {
+    if (!M || !steps || !steps.length) return Promise.resolve(false);
+    const run = async () => {
+      while (turn !== "you") await wait(120);
+      if (mode) pace = mode === "scene" || mode === "coda" ? 0.6 : 1;
+      setTurn("ai");
+      if (live) live.textContent = "koyak.net is typing";
+      await gap();
+      const said = await perform(steps);
+      if (said) history.push({ role: "assistant", content: said });
+      await gap();
+      setTurn("you");
+      if (live) live.textContent = "koyak.net wrote: " + said;
+      describe();
+      return true;
+    };
+    saying = (saying || Promise.resolve()).then(run, run);
+    return saying;
   }
   if (sendBtn) {
     sendBtn.addEventListener("click", () => send());
@@ -658,5 +742,7 @@
     reduce.addEventListener("change", () => { state.develop = 1; kick(); });
   }).catch((e) => console.error(e));
 
-  window.__typewriter = { page, type, space, back, ret, T, clock, render: () => frame(), send, draftText, history, layout, get turn() { return turn; } }; // for the tests (T: timings)
+  const ready = new Promise((res) => { const t = setInterval(() => { if (M) { clearInterval(t); res(); } }, 50); });
+  window.__typewriter = { page, type, space, back, ret, T, clock, render: () => frame(), send, say, ready, draftText, history, layout,
+    get turn() { return turn; }, get swapped() { return swapped; }, get pending() { return retry ? retry.text : null }, get typing() { return !!draftText(); } }; // for the tests (T: timings)
 })();

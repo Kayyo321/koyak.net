@@ -32,7 +32,8 @@
     </nav>
     </div>
 
-    <figure class="writer" id="writer">
+    <!-- She still gets the first word wrong sometimes. -->
+    <figure class="writer" id="writer" data-margin="She still gets the first word wrong sometimes.">
       <canvas id="writer-canvas" role="img" aria-label="A typewriter. The sheet is blank. Type to write on it."></canvas>
       <textarea id="writer-input" class="writer-input" aria-label="Type on the typewriter" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
       <button class="send is-empty" id="writer-send" type="button" aria-label="Send what you typed to koyak.net" title="send" disabled>
@@ -53,6 +54,25 @@
     </figure>
   </main>
 
+  <footer class="underside" id="underside" aria-label="Under the page" data-margin="Paper tends to catch on the underside." hidden>
+    <!-- Paper tends to catch on the underside. -->
+    <div class="shelf" role="list"></div>
+  </footer>
+
+  <div class="fx" id="fx" aria-hidden="true"><div class="fx-dim"></div></div>
+
+  <div class="sheet-room" id="sheet-room" role="dialog" aria-modal="true" aria-label="An unfolded paper plane" data-own-keys hidden>
+    <div class="lamp" aria-hidden="true"></div>
+    <div class="sheet" tabindex="0" role="button" aria-pressed="false" aria-label="The sheet. Press to hold it up to the light" aria-describedby="sheet-status">
+      <div class="face face-front"></div>
+      <div class="face face-back"></div>
+      <div class="face face-light"></div>
+      <button class="corner" type="button" aria-label="Turn the sheet over"><span aria-hidden="true"></span></button>
+    </div>
+    <button class="fold-up" type="button" aria-label="Fold it back up"><span aria-hidden="true"></span></button>
+    <p class="sr-only sheet-status" id="sheet-status" aria-live="polite"></p>
+  </div>
+
   <script src="ripple.js"></script>
   <script src="sound.js"></script>
   <script src="plate.js"></script>
@@ -61,5 +81,6 @@
   <script src="plane.js"></script>
   <script src="cards.js"></script>
   <script src="cardsprint.js"></script>
+  <script src="underside.js"></script>
 </body>
 </html>

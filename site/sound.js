@@ -278,6 +278,23 @@
     window.dispatchEvent(new CustomEvent("koyak:mute", { detail: { muted } }));
   }
 
+  // paper: a fold, an unfold, a sheet turned over. A few soft crackles of filtered noise.
+  function paper({ gain = 1 } = {}) {
+    if (!live()) return;
+    const t0 = ctx.currentTime + 0.005;
+    for (let i = 0; i < 5; i++) {
+      hiss(t0 + i * rand(0.018, 0.05), { type: "bandpass", freq: rand(2600, 5200), q: 0.7, gain: 0.05 * gain * rand(0.5, 1), attack: 0.004, decay: rand(0.02, 0.06) });
+    }
+    hiss(t0, { type: "lowpass", freq: 900, q: 0.4, gain: 0.04 * gain, attack: 0.02, decay: 0.12 });
+  }
+  // correction tape lifting a letter off the sheet
+  function lift({ gain = 1 } = {}) {
+    if (!live()) return;
+    const t = ctx.currentTime + 0.005;
+    hiss(t, { type: "highpass", freq: 3800, q: 0.5, gain: 0.05 * gain, attack: 0.003, decay: 0.05 });
+    tone(t, { freq: 420, to: 300, gain: 0.05 * gain, decay: 0.03 });
+  }
+
   const btn = document.getElementById("mute");
   function show() {
     if (!btn) return;
@@ -291,6 +308,6 @@
     show();
   }
 
-  window.koyakSound = { key, space, jam, carriage, say, voiceStart, voiceShape, voiceStop, setMuted,
+  window.koyakSound = { key, space, jam, carriage, paper, lift, say, voiceStart, voiceShape, voiceStop, setMuted,
     get muted() { return muted; }, get ready() { return !!ctx; } };
 })();

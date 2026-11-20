@@ -23,7 +23,7 @@ html { background: var(--night); color-scheme: dark; }
 body { margin: 0; background: var(--night); color: var(--paper); font-family: var(--mono); -webkit-font-smoothing: antialiased; }
 h1 { margin: 0; }
 
-.stage { position: relative; height: 100vh; height: 100dvh; overflow: hidden; }
+.stage { position: relative; height: 100vh; height: 100dvh; overflow: hidden; overflow: clip; }
 
 /* ---------- the girl: most of the screen, sitting right of centre ---------- */
 .plate {
@@ -169,4 +169,162 @@ h1 { margin: 0; }
   .writer { margin: 0; width: var(--tw); }
   .send { --pw: clamp(3rem, calc(var(--tw) * 0.24), 6rem); }
   .mute { --mb: clamp(1.6rem, calc(var(--tw) * 0.09), 2.2rem); }
+}
+
+/* ---------- under the page (underside.js) ----------
+   The page lifts by --lift to show the floor beneath it, where folded paper collects. Nothing here is visible
+   until the visitor keeps going past the bottom of the screen. */
+:root { --lift: 0px; --lift-ms: 0ms; --tilt: 0deg; --floor: clamp(170px, 40dvh, 360px); --lamp: #ffe7a8; --pencil: #4c4f6e; }
+html, body { overflow: hidden; overscroll-behavior: none; }
+.stage {
+  transform: translateY(calc(-1 * var(--lift))) rotate(var(--tilt));
+  transform-origin: 50% 60%;
+  transition: transform var(--lift-ms) cubic-bezier(.2, .8, .2, 1);
+}
+.underside {
+  position: fixed; left: 0; right: 0; top: 100dvh; height: var(--floor); z-index: 3;
+  transform: translateY(calc(-1 * var(--lift)));
+  transition: transform var(--lift-ms) cubic-bezier(.2, .8, .2, 1);
+  /* the page's own bottom edge throws a dot-screen shadow onto the floor */
+  background:
+    radial-gradient(circle at 50% 50%, rgb(174 178 242 / .16) 0 .9px, transparent 1.2px) 0 0 / 5px 5px,
+    linear-gradient(#020318, #04052a 40%, var(--night));
+  -webkit-mask: linear-gradient(#000 0 0);
+  display: grid; place-items: center;
+}
+.underside::before { /* the underside of the page: a hairline, and the shadow it casts */
+  content: ""; position: absolute; inset: 0 0 auto; height: 38%;
+  background: radial-gradient(circle, rgb(2 3 24 / .9) 0 1.1px, transparent 1.5px) 0 0 / 4px 4px;
+  -webkit-mask: linear-gradient(#000, transparent); mask: linear-gradient(#000, transparent);
+  border-top: 1px solid rgb(174 178 242 / .22);
+  pointer-events: none;
+}
+.shelf { display: flex; flex-wrap: wrap; justify-content: center; align-items: end; gap: clamp(10px, 3vw, 28px); max-width: min(92vw, 860px); padding: 0 16px; }
+.fold {
+  --w: clamp(54px, 9vw, 84px);
+  position: relative; width: var(--w); aspect-ratio: 640 / 556; margin: 0; padding: 0; border: 0; background: none;
+  cursor: pointer; transform: translateY(var(--rise, 0)) rotate(var(--tip, 0deg));
+  transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); -webkit-tap-highlight-color: transparent;
+}
+.fold[data-kind="origin"] { --w: clamp(36px, 5.5vw, 52px); } /* the tiny first one */
+.fold-ink {
+  position: absolute; inset: 0; display: block;
+  /* printed in lilac dots, like everything else on the site */
+  background: radial-gradient(circle, var(--paper) 0 .95px, var(--lilac) 1.05px 1.25px, transparent 1.45px) 0 0 / 3px 3px;
+  -webkit-mask: url(assets/plane.png) center / contain no-repeat; mask: url(assets/plane.png) center / contain no-repeat;
+}
+.fold:hover, .fold:focus-visible { transform: translateY(calc(var(--rise, 0px) - 5px)) rotate(calc(var(--tip, 0deg) - 4deg)); }
+.fold:focus-visible { outline: 2px solid var(--paper); outline-offset: 6px; }
+.fold.is-landing { animation: land 1.2s cubic-bezier(.25, .7, .25, 1) both; }
+@keyframes land {
+  0% { transform: translate(-40vw, -60vh) rotate(-28deg) scale(1.5); opacity: 0; }
+  20% { opacity: 1; }
+  80% { transform: translateY(var(--rise, 0)) rotate(calc(var(--tip, 0deg) + 6deg)); }
+  100% { transform: translateY(var(--rise, 0)) rotate(var(--tip, 0deg)); }
+}
+
+/* ---------- a sheet in the hands ---------- */
+.sheet-room {
+  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px;
+  background: rgb(2 3 24 / .82);
+  opacity: 0; transition: opacity .25s;
+}
+.sheet-room.is-open { opacity: 1; }
+.lamp { /* where the light is: hold the sheet up to it */
+  position: absolute; left: 50%; top: -30vmin; width: 80vmin; height: 60vmin; transform: translateX(-50%);
+  background: radial-gradient(closest-side, rgb(255 231 168 / .5), rgb(255 231 168 / .12) 55%, transparent);
+  opacity: .35; transition: opacity .5s; pointer-events: none;
+}
+.sheet-room:has(.sheet[data-face="light"]) .lamp { opacity: 1; }
+.sheet {
+  --lean: -1.2deg;
+  position: relative; width: min(100%, 440px); aspect-ratio: 8.5 / 10.5; max-height: calc(100dvh - 88px);
+  color: #20234f; cursor: zoom-in; outline: none;
+  transform: rotate(var(--lean));
+  transition: transform .45s cubic-bezier(.3, .8, .25, 1), filter .5s;
+  filter: drop-shadow(0 18px 30px rgb(0 0 0 / .45));
+}
+.sheet:focus-visible { outline: 2px solid var(--paper); outline-offset: 6px; }
+.sheet[data-face="back"] { --lean: 1deg; }
+.sheet.is-turning { transform: rotate(var(--lean)) scaleX(0.02); transition-duration: .16s; transition-timing-function: ease-in; }
+.sheet[data-face="light"] { transform: translateY(-4vh) rotate(.4deg) scale(1.02); cursor: zoom-out; filter: drop-shadow(0 0 40px rgb(255 231 168 / .35)); }
+.face {
+  position: absolute; inset: 0; overflow: auto; padding: clamp(22px, 7%, 40px);
+  display: none;
+  /* paper, with the creases a plane leaves behind when it is unfolded */
+  background:
+    linear-gradient(90deg, transparent calc(50% - .6px), rgb(32 35 79 / .14) 50%, transparent calc(50% + .6px)),
+    linear-gradient(26deg, transparent calc(50% - .6px), rgb(32 35 79 / .09) 50%, transparent calc(50% + .6px)),
+    linear-gradient(-26deg, transparent calc(50% - .6px), rgb(32 35 79 / .09) 50%, transparent calc(50% + .6px)),
+    radial-gradient(circle, rgb(59 66 214 / .06) 0 .7px, transparent 1px) 0 0 / 3px 3px,
+    var(--paper);
+}
+.sheet[data-face="front"] .face-front, .sheet[data-face="back"] .face-back, .sheet[data-face="light"] .face-light { display: block; }
+.sheet[data-kind="origin"] .face-front .hand-type { font-size: clamp(1rem, 3.6vw, 1.2rem); line-height: 1.6; }
+.face-light { /* backlit: warm, and you can see through it */
+  background:
+    linear-gradient(90deg, transparent calc(50% - .8px), rgb(120 80 20 / .25) 50%, transparent calc(50% + .8px)),
+    linear-gradient(26deg, transparent calc(50% - .8px), rgb(120 80 20 / .18) 50%, transparent calc(50% + .8px)),
+    linear-gradient(-26deg, transparent calc(50% - .8px), rgb(120 80 20 / .18) 50%, transparent calc(50% + .8px)),
+    radial-gradient(circle at 50% 0%, #fffaf0, #ffeec4 60%, #f5dc9f);
+}
+.face-light .on-top { opacity: .55; }
+.face-light .through { position: absolute; inset: clamp(22px, 7%, 40px); transform: scaleX(-1); opacity: .32; filter: blur(.35px); }
+.face-light .impression { /* pencil pressed in from a sheet that once lay on top: grooves, not graphite */
+  margin: 2.2em 0 0; font: 400 1.15rem/1.4 var(--hand); color: rgb(255 248 228 / .9);
+  text-shadow: -1px -1px 0 rgb(110 80 30 / .55), 1px 1px 0 rgb(255 255 255 / .8);
+  transform: rotate(-2deg);
+}
+
+/* hands: who wrote what, and with what */
+:root { --hand: "Bradley Hand", "Segoe Print", "Chalkboard SE", "Comic Neue", "Comic Sans MS", cursive; }
+.hand { margin: 0 0 .9em; font: 400 .95rem/1.5 var(--mono); overflow-wrap: anywhere; }
+.hand-type { color: #20234f; }
+.hand-visitor { color: #0d1468; font-weight: 400; border-top: 1px dashed rgb(13 20 104 / .3); padding-top: .8em; }
+.hand-pencil { font: 400 1.15rem/1.35 var(--hand); color: var(--pencil); text-shadow: 0 0 .5px rgb(76 79 110 / .6); transform: rotate(-.6deg); }
+.hand-pencil2 { font: 400 1.08rem/1.35 var(--hand); color: #7c7f9e; font-style: italic; letter-spacing: .02em; transform: rotate(1.2deg) translateX(.6em); }
+.hand-child { font: 400 1.25rem/1.4 var(--hand); color: #2a3a8a; letter-spacing: .08em; word-spacing: .3em; }
+.hand-red { font: 400 1.05rem/1.4 var(--hand); color: #c0233a; transform: rotate(-2deg); }
+.hand-pen { font: 400 1.1rem/1.4 var(--hand); color: #1b2a7a; }
+.hand-stamp { font: 700 .72rem/1.3 var(--mono); letter-spacing: .14em; color: #3b42d6; border: 1.5px solid currentColor; padding: .3em .5em; display: inline-block; opacity: .8; transform: rotate(-1.5deg); }
+.hand-faint { color: rgb(32 35 79 / .35); font-style: italic; }
+.hand-crease { /* so faint it reads as one more fold line */
+  position: absolute; left: 6%; right: 6%; top: 48%; text-align: center; transform: rotate(-26deg);
+  font: 400 .78rem/1 var(--mono); letter-spacing: .05em; color: rgb(32 35 79 / .2);
+  text-shadow: 0 1px 0 rgb(255 255 255 / .7);
+}
+.face-light .through .hand-crease { color: rgb(60 40 10 / .9); }
+
+/* turn it over by the dog-eared corner; fold it back up */
+.corner {
+  position: absolute; right: 0; bottom: 0; width: 46px; height: 46px; margin: 0; padding: 0; border: 0; cursor: pointer;
+  background: linear-gradient(315deg, transparent 50%, #c9cbee 50%, #dfe1fb 72%, var(--paper));
+  filter: drop-shadow(-2px -2px 2px rgb(0 0 0 / .12));
+  transition: width .2s, height .2s;
+}
+.corner:hover, .corner:focus-visible { width: 58px; height: 58px; }
+.corner:focus-visible { outline: 2px solid #20234f; outline-offset: -4px; }
+.sheet[data-face="light"] .corner { display: none; }
+.fold-up {
+  position: absolute; top: max(14px, env(safe-area-inset-top)); right: 16px; width: 44px; height: 44px; margin: 0; padding: 0; border: 0;
+  background: none; cursor: pointer; opacity: .75;
+}
+.fold-up span { display: block; width: 100%; height: 100%;
+  background: radial-gradient(circle, var(--paper) 0 .9px, var(--lilac) 1px 1.2px, transparent 1.4px) 0 0 / 3px 3px;
+  -webkit-mask: url(assets/plane.png) center / 80% no-repeat; mask: url(assets/plane.png) center / 80% no-repeat; }
+.fold-up:hover, .fold-up:focus-visible { opacity: 1; }
+.fold-up:focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
+
+/* ---------- what the story does to the page (fx) ---------- */
+.fx { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
+.fx-dim { position: absolute; inset: 0; background: #010110; opacity: 0; }
+.fx-art { position: absolute; inset: 0; }
+.fx-art svg { display: block; width: 100%; height: 100%; }
+.fx-vignette { display: grid; place-items: center; background: rgb(2 3 24 / .55); }
+.fx-vignette svg { width: min(78vw, 70vh, 560px); height: auto; filter: drop-shadow(0 20px 40px rgb(0 0 0 / .5)); }
+.fx-dim + .fx-art { z-index: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stage, .underside, .sheet, .fold, .sheet-room { transition: none !important; }
+  .fold.is-landing { animation: none; }
 }

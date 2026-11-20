@@ -1,6 +1,8 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "net", "runtimeExecutable": "python3", "runtimeArgs": ["serve.py"], "port": 4317 }
+    { "name": "net", "runtimeExecutable": "python3", "runtimeArgs": ["serve.py"], "port": 4317 },
+    { "name": "net-worker", "runtimeExecutable": "sh", "runtimeArgs": ["-c", "CI=1 WRANGLER_SEND_METRICS=false exec node node_modules/wrangler/bin/wrangler.js dev --port 4317 --ip 127.0.0.1 < /dev/null"], "port": 4317 },
+    { "name": "net-fixture", "runtimeExecutable": "sh", "runtimeArgs": ["-c", "CI=1 WRANGLER_SEND_METRICS=false exec node node_modules/wrangler/bin/wrangler.js dev --port 4318 --ip 127.0.0.1 --var STORY_FIXTURE:1 --var STORY_GREET_CHANCE:1 --persist-to .wrangler/fixture-state < /dev/null"], "port": 4318 }
   ]
 }

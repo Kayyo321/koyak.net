@@ -1,0 +1,128 @@
+{
+  "v": 1,
+  "_about": "A synthetic content pack for the story engine. It exercises every mechanic and contains no real story text. Load it with STORY_FIXTURE=1.",
+  "greetChance": 0,
+  "greeting": [{ "say": "hello. how may i halp?" }, { "pause": 300 }, { "erase": 5 }, { "type": "help?" }],
+  "prompts": { "narrator": "Fixture narrator: plain and brief.", "invite": "Return 'invite' if the line asks the narrator to take the parcel or a turn; 'rude' if it insults the fog; else 'ordinary'." },
+  "factText": { "heard:hum": "a hum on the stair" },
+  "leave": ["^(leave|quit|exit|stop)( the (game|story))?$", "\\bback to (the )?(chat|website)\\b"],
+  "origin": { "ask": "FIXTURE: what now?", "again": "FIXTURE: again from the quay." },
+  "scene": {
+    "leave": ["FIXTURE: left the story.", "FIXTURE: say resume to return."],
+    "resume": "FIXTURE: resumed.", "refresh": "FIXTURE: refreshed.",
+    "hint": "FIXTURE: look, listen, go on, go back.", "unclear": "FIXTURE: unclear.",
+    "wait": "FIXTURE: waited.", "inventory": "FIXTURE: a parcel.", "noBack": "FIXTURE: no way back."
+  },
+  "start": "quay",
+  "scenes": {
+    "quay": {
+      "enter": null, "again": "FIXTURE: the quay again.", "short": "FIXTURE: at the quay.",
+      "look": ["FIXTURE: a quay, a stair, a gate.", "FIXTURE: still a quay."],
+      "listen": "FIXTURE: gulls.",
+      "things": [{ "id": "parcel", "names": "\\b(parcel|box)\\b", "look": "FIXTURE: a parcel, string-tied.", "touch": "FIXTURE: it ticks." }],
+      "actions": [
+        { "id": "stair", "desc": "climb the stair", "match": ["\\b(stair|stairs|climb|up)\\b"], "go": "stair" },
+        { "id": "gate", "desc": "go through the gate", "match": ["\\b(gate|go on|walk on|continue)\\b"], "go": "gate" }
+      ],
+      "hint": "FIXTURE: stair or gate.", "unclear": ["FIXTURE: unclear at the quay.", "FIXTURE: still unclear at the quay."]
+    },
+    "stair": {
+      "enter": "FIXTURE: the stair. A hum from the top.", "short": "FIXTURE: on the stair.", "set": ["heard:hum"],
+      "look": "FIXTURE: steps up to a lamp room.", "listen": "FIXTURE: the hum says come up.", "listenSets": ["heard:hum"],
+      "actions": [
+        { "id": "top", "desc": "go to the top of the stair (commits)", "ending": "lamp", "match": ["\\b(top|go up|climb on|lamp)\\b"], "not": ["\\b(look|listen)\\b"] }
+      ],
+      "back": "quay", "backSay": "FIXTURE: you come down.",
+      "hint": "FIXTURE: top or back.", "unclear": "FIXTURE: top or back?"
+    },
+    "gate": {
+      "voices": true,
+      "enter": "FIXTURE: two doors, red and blue. Both call you.", "short": "FIXTURE: at the doors.",
+      "look": "FIXTURE: a red door and a blue door.", "listen": "Red: '{a.listen}' Blue: '{b.listen}'",
+      "actions": [
+        { "id": "a", "desc": "approach the red door", "match": ["\\bred\\b"], "not": ["\\b(ask|what|who)\\b"], "go": "nearA" },
+        { "id": "b", "desc": "approach the blue door", "match": ["\\bblue\\b"], "not": ["\\b(ask|what|who)\\b"], "go": "nearB" }
+      ],
+      "back": "quay", "hint": "FIXTURE: ask, or pick a door.", "unclear": "FIXTURE: which door?"
+    },
+    "nearA": {
+      "near": "a", "enter": "FIXTURE: at {a.name}. '{a.near}'", "short": "FIXTURE: at {a.name}.",
+      "look": "FIXTURE: the red door.", "listen": "'{a.near}'",
+      "actions": [{ "id": "open", "commit": true, "desc": "open this door (commits)", "match": ["\\b(open|enter|go in)\\b"], "not": ["\\b(back|ask)\\b"] }],
+      "back": "gate", "hint": "FIXTURE: open or back.", "unclear": "FIXTURE: open or back?"
+    },
+    "nearB": {
+      "near": "b", "enter": "FIXTURE: at {b.name}. '{b.near}'", "short": "FIXTURE: at {b.name}.",
+      "look": "FIXTURE: the blue door.", "listen": "'{b.near}'",
+      "actions": [{ "id": "open", "commit": true, "desc": "open this door (commits)", "match": ["\\b(open|enter|go in)\\b"], "not": ["\\b(back|ask)\\b"] }],
+      "back": "gate", "hint": "FIXTURE: open or back.", "unclear": "FIXTURE: open or back?"
+    }
+  },
+  "voices": {
+    "paths": {
+      "a": { "name": "the red door", "voice": "The red voice", "match": ["\\bred\\b"] },
+      "b": { "name": "the blue door", "voice": "The blue voice", "match": ["\\bblue\\b"] }
+    },
+    "lines": {
+      "listen": { "real": "FIXTURE-REAL: in here.", "false": "FIXTURE-FALSE: in here." },
+      "near": { "real": "FIXTURE-REAL: nearly.", "false": "FIXTURE-FALSE: nearly." }
+    },
+    "questions": [{ "id": "parcel", "match": ["\\b(parcel|box|inside)\\b"], "real": "FIXTURE-REAL: you packed it.", "false": "FIXTURE-FALSE: a guess." }],
+    "fallback": { "real": "FIXTURE-REAL: come in.", "false": "FIXTURE-FALSE: come in." },
+    "answerLine": "{voice}: '{line}'", "recallNone": "FIXTURE: nothing asked yet.", "recallLine": "{voice} said: '{line}'",
+    "tooFar": "FIXTURE: too far to hear the other.", "realEnding": "out", "falseEnding": "pit"
+  },
+  "endings": {
+    "lamp": { "kind": "bad", "steps": [{ "say": "FIXTURE: the lamp." }, { "fx": { "t": "dim", "to": 1, "ms": 200 } }, { "pause": 200 }, { "fx": { "t": "clear", "ms": 200 } }], "coda": "FIXTURE CODA: the lamp." },
+    "pit": { "kind": "bad", "steps": [{ "say": "FIXTURE: the pit." }, { "fx": { "t": "tilt", "deg": -84, "ms": 200 } }, { "fx": { "t": "overlay", "id": "x", "mode": "cover", "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\" fill=\"#070936\" opacity=\".5\"/></svg>", "ms": 200 } }, { "pause": 200 }, { "fx": { "t": "clear", "ms": 200 } }], "coda": "FIXTURE CODA: the pit." },
+    "out": { "kind": "good", "steps": [{ "say": "FIXTURE: out and home." }, { "fx": { "t": "overlay", "id": "y", "mode": "vignette", "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><circle cx=\"5\" cy=\"5\" r=\"4\" fill=\"#aeb2f2\"/></svg>", "ms": 200 } }, { "say": "FIXTURE: GOOD END." }, { "fx": { "t": "clear", "ms": 200 } }] }
+  },
+  "askAfter": [{ "requires": ["heard:hum"], "say": "FIXTURE: did the hum frighten you?" }, { "say": "FIXTURE: did the doors frighten you?" }],
+  "coda": {
+    "ask": "FIXTURE: your last line?",
+    "emptyMatch": ["^(no|nothing|skip)$"],
+    "rudeMatch": ["\\b(stupid|silly) fog\\b"],
+    "ordinary": ["FIXTURE: kept."], "rude": ["FIXTURE: rude, kept."], "empty": ["FIXTURE: nothing, kept."],
+    "invite": [{ "say": "FIXTURE: oh." }],
+    "after": ["FIXTURE: folded. Again?", "FIXTURE: folded again. Again?"],
+    "resume": "FIXTURE: your last line, still?"
+  },
+  "invite": { "match": ["\\byou (take|carry) the parcel\\b", "\\byour turn\\b"], "not": ["\\bnot\\b"] },
+  "reprise": {
+    "beats": 2,
+    "open": [{ "fx": { "t": "swap", "on": true } }, { "say": "FIXTURE REPRISE: my turn. What is in the way?" }],
+    "after": [[{ "say": "FIXTURE REPRISE: past it. What next?" }], [{ "say": "FIXTURE REPRISE: arrived. Say the keeper's line." }]],
+    "finale": [{ "say": "FIXTURE REPRISE: thank you." }, { "fx": { "t": "face", "cue": "smile", "ms": 300 } }, { "fx": { "t": "clear", "ms": 200 } }, { "fx": { "t": "swap", "on": false } }],
+    "fallback": ["FIXTURE ECHO 1: {quote}.", "FIXTURE ECHO 2: {quote}."],
+    "nudge": ["FIXTURE: say something.", "FIXTURE: and then?", "FIXTURE: the keeper's line?"],
+    "improvise": "Fixture improviser: reply to the beat.",
+    "leave": "FIXTURE: reprise paused.",
+    "resume": ["FIXTURE: reprise, beat one.", "FIXTURE: reprise, beat two.", "FIXTURE: reprise, the keeper's line."],
+    "learn": ["carried"]
+  },
+  "chat": [
+    { "id": "typo", "requires": ["greeted"], "desc": "asks about the halp typo", "match": ["\\bhalp\\b", "\\btypo\\b"], "near": ["\\b(typo|halp)\\b"], "say": "FIXTURE: typo reply.", "set": ["typo"] },
+    { "id": "job", "requires": ["typo"], "desc": "asks what she used to do", "match": ["\\bused to do\\b"], "near": ["\\bused to\\b"], "say": [{ "say": "FIXTURE: job reply." }, { "fx": { "t": "face", "cue": "gaze", "ms": 300 } }, { "fx": { "t": "nudge" } }], "set": ["told"] },
+    { "id": "resume", "when": "suspended", "desc": "wants to resume", "match": ["\\bresume\\b"], "near": ["\\bresume\\b"], "do": "resume" },
+    { "id": "replay", "requires": ["ended"], "when": "free", "desc": "wants to play again", "match": ["\\bplay again\\b"], "near": ["\\bagain\\b"], "do": "replay" },
+    { "id": "yes", "offer": "again", "match": ["^(yes|again)$"], "do": "replay" },
+    { "id": "lore", "requires": ["knows:lore"], "desc": "asks about the lore", "match": ["\\blore\\b"], "near": ["\\blore\\b"], "say": "FIXTURE: lore reply." },
+    { "id": "fun", "requires": ["carried"], "desc": "asks what she does for fun", "match": ["\\bfor fun\\b"], "near": ["\\bfun\\b"], "say": "FIXTURE: fun memory." }
+  ],
+  "chatFacts": [
+    { "requires": ["told"], "text": "FIXTURE FACT: told." },
+    { "requires": ["knows:lore"], "text": "FIXTURE FACT: lore." },
+    { "requires": ["carried"], "text": "FIXTURE FACT: carried." }
+  ],
+  "paper": {
+    "origin": { "front": [{ "t": "FIXTURE ORIGIN FRONT." }], "back": [{ "t": "FIXTURE ORIGIN RULE.", "hand": "crease" }] },
+    "fronts": { "out": [{ "t": "FIXTURE GOOD FRONT." }] },
+    "badNote": "FIXTURE NOTE.",
+    "impression": "FIXTURE IMPRESSION.",
+    "scraps": [
+      { "lines": [{ "t": "FIXTURE SCRAP ONE.", "hand": "pencil" }] },
+      { "lines": [{ "t": "FIXTURE SCRAP TWO.", "hand": "child" }], "set": ["knows:lore"] }
+    ],
+    "blank": { "lines": [{ "t": "FIXTURE BLANK.", "hand": "faint" }] }
+  }
+}
