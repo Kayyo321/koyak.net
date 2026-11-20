@@ -32,7 +32,7 @@ export class Visitor extends DurableObject {
       const pack = await loadPack(this.env);
       if (!pack) return { arg: false };
       const vs = await this.state();
-      const { steps } = E.hello(pack, vs, Math.random, chance ?? pack.greetChance ?? 0.35);
+      const { steps } = E.hello(pack, vs, Math.random, chance ?? pack.greetChance ?? 0.05);
       await this.commit(vs);
       return { arg: true, ...this.out(pack, vs, steps) };
     });
