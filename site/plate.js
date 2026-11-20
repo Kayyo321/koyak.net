@@ -12,6 +12,8 @@
 
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
   const SEED = 7; // lab seed where both eyes and the mouth survive
+  const RIP = window.koyakRipples; // ripple.js: the title's ripples reach this far, faintly
+  const RIP_STUB = "vec3 ripple(vec2 p, float r) { return vec3(0.0); } vec2 ripClient(vec2 p) { return p; }";
 
   const vert = `
     attribute vec2 p;
@@ -27,6 +29,7 @@
     uniform float uLens;
     uniform vec4 uCrop[6];
     uniform vec4 uCropP[6];
+    ${RIP ? RIP.glsl : RIP_STUB}
 
     const vec3 NIGHT = vec3(0.027, 0.035, 0.212);
     const vec3 INK   = vec3(0.231, 0.259, 0.839);
@@ -113,6 +116,9 @@
 
     void main() {
       vec2 px = gl_FragCoord.xy;
+      // a ripple from the title, nearly spent by the time it gets here, bends the print a little as it passes
+      vec3 rw = ripple(ripClient(px), 380.0);
+      px += vec2(rw.y, -rw.z) * 9.0 * uPitch / 3.0;
       vec2 uv = px / uRes;
       float dev = uDevelop * uDevelop * (3.0 - 2.0 * uDevelop);
       float pitch = mix(uPitch * 4.0, uPitch, dev);
@@ -217,6 +223,7 @@
   gl.uniform4fv(U.uCrop, crops);
   gl.uniform4fv(U.uCropP, cropP);
   gl.uniform1f(U.uSeed, SEED);
+  const feedRipples = RIP ? RIP.bind(gl, prog, canvas) : () => {};
 
   function texture(unit, url) {
     return new Promise((res, rej) => {
@@ -259,6 +266,7 @@
     gl.uniform1f(U.uLens, state.lens);
     gl.uniform1f(U.uMix, face.mix);
     gl.uniform1f(U.uDim, face.dim);
+    feedRipples(now);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
@@ -274,7 +282,7 @@
     else if (state.lens > state.lensTarget) state.lens = Math.max(state.lensTarget, state.lens - dt / 420);
     draw(now);
     const drifting = !reduce.matches && state.visible;
-    const busy = animatingIn || state.lens !== state.lensTarget || (state.lens > 0 && !reduce.matches) || face.tweening;
+    const busy = animatingIn || (RIP && RIP.active(now)) || state.lens !== state.lensTarget || (state.lens > 0 && !reduce.matches) || face.tweening;
     if (busy) raf = requestAnimationFrame(frame);
     else if (drifting) { // the slow drift only needs ~20 fps
       clearTimeout(last); last = setTimeout(() => { if (!raf) raf = requestAnimationFrame(frame); }, 50);
@@ -289,6 +297,7 @@
     kick();
   });
   canvas.addEventListener("pointerleave", () => { state.lensTarget = 0; kick(); });
+  window.addEventListener("koyak:ripple", kick);
   new IntersectionObserver(([e]) => { state.visible = e.isIntersecting; kick(); }).observe(canvas);
   document.addEventListener("visibilitychange", () => { state.visible = !document.hidden; kick(); });
   reduce.addEventListener("change", () => { state.develop = 1; kick(); });
@@ -390,7 +399,10 @@
         const opts = MOUTH[cur]; cur = opts[Math.floor(Math.random() * opts.length)];
         face.dim = 1; cut(cur);
       }
-      await wait(cur === "open" ? 70 + Math.random() * 140 : 60 + Math.random() * 90);
+      const hold = cur === "open" ? 70 + Math.random() * 140 : 60 + Math.random() * 90;
+      // her voice (sound.js) sounds only while her lips are apart, for exactly as long as this frame is up
+      if (cur !== "open" && !document.hidden && window.koyakSound) window.koyakSound.voice({ ms: hold, wide: cur === "talk-open" });
+      await wait(hold);
     }
   }
   function startTalk() {

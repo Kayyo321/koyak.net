@@ -8,6 +8,7 @@
 
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
   const SEED = 7;
+  const RIP = window.koyakRipples; // ripple.js: pressing the title sets the word swaying
 
   const vert = `attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }`;
   const frag = `
@@ -17,6 +18,7 @@
     uniform float uPitch, uTime, uDevelop, uMotion, uSeed;
     uniform vec4 uCrop[4];
     uniform vec4 uCropP[4];
+    ${RIP ? RIP.glsl : "vec3 ripple(vec2 p, float r) { return vec3(0.0); } vec2 ripClient(vec2 p) { return p; }"}
 
     const vec3 NIGHT = vec3(0.027, 0.035, 0.212);
     const vec3 INK   = vec3(0.231, 0.259, 0.839);
@@ -57,6 +59,9 @@
 
     void main() {
       vec2 px = gl_FragCoord.xy;
+      // the title sits in the ripple's own water: its dots bend with every crest that runs through
+      vec3 rw = ripple(ripClient(px), 260.0);
+      px += vec2(rw.y, -rw.z) * 7.0 * uRipView.z;
       vec2 uv = px / uRes;
       float dev = uDevelop * uDevelop * (3.0 - 2.0 * uDevelop);
       float pitch = mix(uPitch * 4.0, uPitch, dev);
@@ -121,6 +126,7 @@
   gl.uniform4fv(U.uCropP, cropP);
   gl.uniform1f(U.uSeed, SEED);
   gl.uniform1i(U.uText, 0);
+  const feedRipples = RIP ? RIP.bind(gl, prog, canvas) : () => {};
 
   const tex = gl.createTexture();
   gl.activeTexture(gl.TEXTURE0);
@@ -175,9 +181,10 @@
     gl.uniform1f(U.uTime, (now - state.t0) / 1000);
     gl.uniform1f(U.uDevelop, state.develop);
     gl.uniform1f(U.uMotion, reduce.matches ? 0 : 1);
+    feedRipples(now);
     gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    if (state.develop < 1) raf = requestAnimationFrame(frame);
+    if (state.develop < 1 || (RIP && RIP.active(now))) raf = requestAnimationFrame(frame);
     else if (!reduce.matches && state.visible) { clearTimeout(timer); timer = setTimeout(kick, 50); }
   }
   const kick = () => { if (!raf && state.visible) raf = requestAnimationFrame(frame); };
@@ -188,6 +195,7 @@
     state.t0 = performance.now();
     kick();
     new ResizeObserver(() => { layout(); kick(); }).observe(host);
+    window.addEventListener("koyak:ripple", () => { clearTimeout(timer); raf = raf || requestAnimationFrame(frame); });
     document.addEventListener("visibilitychange", () => { state.visible = !document.hidden; kick(); });
     reduce.addEventListener("change", () => { state.develop = 1; kick(); });
     canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); host.classList.remove("is-printed"); canvas.hidden = true; });

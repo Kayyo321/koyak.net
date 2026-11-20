@@ -14,6 +14,7 @@
   const clock = { now: () => performance.now() }; // one clock for everything, so tests can stop time mid-strike
   const HEAD = 180; // photo px of headroom above the machine for the sheet to rise into
   const FONT = '"Plex Mono", ui-monospace, monospace';
+  const sound = () => window.koyakSound; // sound.js (may be missing, or muted)
 
   const vert = `attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }`;
   const frag = `
@@ -390,7 +391,8 @@
     if (!M) return;
     const now = clock.now(), key = keyFor(ch);
     anims.keys.push({ key, t0: now });
-    if (page.col >= M.print.cols) { page.jamT0 = now; kick(); return; } // at the margin: the keys go down, nothing prints
+    if (page.col >= M.print.cols) { page.jamT0 = now; sound()?.jam(); kick(); return; } // at the margin: the keys go down, nothing prints
+    sound()?.key({ delay: reduce.matches ? 0 : T.up, gain: ai ? 0.75 : 1 }); // heard as the slug meets the paper
     const col = page.col++;
     page.ink = true;
     if (!ai) { draft.lines[draft.lines.length - 1][col] = ch; draftChanged(); }
@@ -407,13 +409,15 @@
   function space() {
     if (!M) return;
     anims.space = clock.now();
-    if (page.col < M.print.cols) page.col++; else page.jamT0 = clock.now();
+    if (page.col < M.print.cols) { page.col++; sound()?.space({ gain: turn === "you" ? 1 : 0.75 }); }
+    else { page.jamT0 = clock.now(); sound()?.jam(); }
     kick();
   }
   function back() { if (M && page.col > 0) { page.col--; kick(); } }
   function ret() {
     if (!M) return;
     const now = clock.now();
+    sound()?.carriage({ col: page.col, cols: M.print.cols });
     // shift every line up one; the offset starts a line low so nothing jumps, then the sheet shoots up to it
     page.feedFrom = feedNow(now) - M.print.line; page.feedT0 = reduce.matches ? -1e9 : now;
     page.line++; page.col = 0;
@@ -454,7 +458,7 @@
   window.addEventListener("keydown", (e) => {
     if (e.target !== sink && e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
     // Enter / Space on a focused card must activate it, not feed the typewriter
-    if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest(".cards, .send")) return;
+    if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest(".cards, .send, .mute")) return;
     if (e.repeat) { if (e.key.length === 1 || e.key === "Enter" || e.key === " ") e.preventDefault(); return; }
     if (handleKey(e)) e.preventDefault();
   });
@@ -562,14 +566,19 @@
   const talk = (talking) => window.dispatchEvent(new CustomEvent("koyak:talk", { detail: { talking } }));
   async function typeOut(text) {
     const lines = layout(text);
+    // her voice rises toward the end of a question: for each letter, is the sentence it belongs to one?
+    const flat = lines.join(" ");
+    let pos = 0;
+    const asking = (i) => { const m = /[.!?]/.exec(flat.slice(i)); return !!m && m[0] === "?" && m.index < 14; };
     talk(true);
     let prev = "";
     for (let i = 0; i < lines.length; i++) {
-      if (i > 0) { talk(false); await carriage(); talk(true); prev = ""; }
+      if (i > 0) { talk(false); await carriage(); talk(true); prev = ""; pos++; }
       for (const ch of lines[i]) {
         await wait(keyDelay(prev, ch));
+        sound()?.say(ch, { question: asking(pos) }); // the syllable her mouth makes next (plate.js voices it)
         if (ch === " ") space(); else type(ch, true);
-        prev = ch;
+        prev = ch; pos++;
       }
     }
     await wait(reduce.matches ? 0 : T.down);

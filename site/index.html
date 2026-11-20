@@ -39,6 +39,10 @@
         <canvas class="plane" aria-hidden="true"></canvas>
         <img class="plane-img" src="assets/plane.png" alt="" hidden>
       </button>
+      <button class="mute" id="mute" type="button" aria-pressed="false" aria-label="Sound is on. Mute sound" title="sound on">
+        <svg class="px px-on" viewBox="0 0 11 9" aria-hidden="true" shape-rendering="crispEdges"><path fill="currentColor" d="M0 3h2v3H0zM2 2h1v5H2zM3 1h1v7H3zM4 0h1v9H4zM6 3h1v3H6zM7 1h1v2H7zM7 6h1v2H7zM8 3h1v3H8zM9 0h1v1H9zM9 8h1v1H9zM10 2h1v5h-1z"/></svg>
+        <svg class="px px-off" viewBox="0 0 11 9" aria-hidden="true" shape-rendering="crispEdges"><path fill="currentColor" d="M0 3h2v3H0zM2 2h1v5H2zM3 1h1v7H3zM4 0h1v9H4zM6 2h1v1H6zM10 2h1v1h-1zM7 3h1v1H7zM9 3h1v1H9zM8 4h1v1H8zM7 5h1v1H7zM9 5h1v1H9zM6 6h1v1H6zM10 6h1v1h-1z"/></svg>
+      </button>
       <p class="sr-only" id="writer-status" aria-live="polite"></p>
     </figure>
     </div>
@@ -49,6 +53,8 @@
     </figure>
   </main>
 
+  <script src="ripple.js"></script>
+  <script src="sound.js"></script>
   <script src="plate.js"></script>
   <script src="koyak.js"></script>
   <script src="typewriter.js"></script>
