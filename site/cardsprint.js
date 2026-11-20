@@ -8,7 +8,7 @@
   canvas.className = "cards-print";
   canvas.setAttribute("aria-hidden", "true");
   host.prepend(canvas);
-  const gl = canvas.getContext("webgl", { antialias: false, premultipliedAlpha: false });
+  const gl = canvas.getContext("webgl", { antialias: false, premultipliedAlpha: true });
   if (!gl) return; // the plain CSS outline stays
 
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
@@ -55,7 +55,7 @@
         if (t > 0.0 && cov > best) { best = cov; bt = t; }
       }
       vec3 dotc = mix(INK, PAPER, smoothstep(0.4, 0.95, bt));
-      gl_FragColor = vec4(dotc, best);
+      gl_FragColor = vec4(dotc * best, best); // premultiplied (see koyak.js)
     }`;
 
   function compile(type, src) {

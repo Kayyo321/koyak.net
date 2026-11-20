@@ -3,7 +3,7 @@
 (() => {
   const host = document.getElementById("koyak");
   const canvas = document.getElementById("koyak-canvas");
-  const gl = canvas.getContext("webgl", { antialias: false, premultipliedAlpha: false });
+  const gl = canvas.getContext("webgl", { antialias: false, premultipliedAlpha: true });
   if (!gl) return; // the plain type stays visible
 
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
@@ -83,7 +83,9 @@
       vec3 dotc = mix(INK, PAPER, smoothstep(0.4, 0.95, s.y));
       float f = frame * 0.22;
       // transparent paper between the dots, so the word floats over whatever is behind it
-      gl_FragColor = s.x >= f ? vec4(dotc, s.x) : vec4(PAPER, f);
+      // premultiplied: some Chromium builds on Windows (Edge, Opera GX) composite a canvas made with
+      // premultipliedAlpha: false as if it were opaque, painting the ink colour over the whole box
+      gl_FragColor = s.x >= f ? vec4(dotc * s.x, s.x) : vec4(PAPER * f, f);
     }`;
 
   function compile(type, src) {

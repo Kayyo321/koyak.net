@@ -7,7 +7,7 @@
 (() => {
   const canvas = document.getElementById("writer-canvas");
   const sink = document.getElementById("writer-input");
-  const gl = canvas.getContext("webgl", { antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: true });
+  const gl = canvas.getContext("webgl", { antialias: false, premultipliedAlpha: true, preserveDrawingBuffer: true });
   if (!gl) { canvas.hidden = true; return; }
 
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
@@ -116,7 +116,7 @@
       inkc = mix(inkc, mix(INK, PURPLE_FRINGE, ai), step(ink, bayer4(px / uDither + 2.0)) * 0.4);
       col = mix(col, inkc, dith);
       alpha = max(alpha, dith);
-      gl_FragColor = vec4(col, alpha);
+      gl_FragColor = vec4(col * alpha, alpha); // premultiplied (see koyak.js)
     }`;
 
   function compile(type, src) {

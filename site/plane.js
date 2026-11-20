@@ -7,7 +7,7 @@
   const canvas = btn && btn.querySelector(".plane");
   if (!canvas) return;
   const fallback = btn.querySelector(".plane-img");
-  const gl = canvas.getContext("webgl", { antialias: false, premultipliedAlpha: false });
+  const gl = canvas.getContext("webgl", { antialias: false, premultipliedAlpha: true });
   const noGL = () => { canvas.hidden = true; if (fallback) fallback.hidden = false; };
   if (!gl) return noGL();
 
@@ -52,7 +52,7 @@
         if (t > 0.0 && cov > best) { best = cov; bt = t; }
       }
       vec3 col = mix(INK, PAPER, smoothstep(0.35, 0.9, bt));
-      gl_FragColor = vec4(col, best);
+      gl_FragColor = vec4(col * best, best); // premultiplied (see koyak.js)
     }`;
 
   function compile(type, src) {
