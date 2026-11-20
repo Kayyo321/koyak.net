@@ -199,6 +199,16 @@ html, body { overflow: hidden; overscroll-behavior: none; }
   border-top: 1px solid rgb(174 178 242 / .22);
   pointer-events: none;
 }
+/* the bottom edge of the page, to take hold of and drag up. It says nothing until the floor has been found once */
+.pull-edge { position: fixed; left: 0; right: 0; bottom: 0; height: 32px; z-index: 4; cursor: default; touch-action: none; }
+:root[data-floor-found] .pull-edge { cursor: grab; }
+:root[data-dragging], :root[data-dragging] * { cursor: grabbing !important; user-select: none; }
+:root[data-under="open"] .pull-edge { display: none; }
+@media (hover: none) { .pull-edge { display: none; } } /* touch swipes up from the bottom instead (underside.js) */
+:root:not([data-floor-found]) .fold { cursor: default; } /* a fold glimpsed mid-pull isn't announced either */
+.underside { cursor: default; }
+:root[data-floor-found][data-under="open"] .underside { cursor: grab; }
+:root[data-floor-found][data-under="open"] .fold { cursor: pointer; }
 .shelf { display: flex; flex-wrap: wrap; justify-content: center; align-items: end; gap: clamp(10px, 3vw, 28px); max-width: min(92vw, 860px); padding: 0 16px; }
 .fold {
   --w: clamp(54px, 9vw, 84px);

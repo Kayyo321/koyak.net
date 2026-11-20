@@ -46,8 +46,11 @@ def talk(page, text):
     return said_after(page, before)
 
 def wheel_open(page):
-    page.mouse.move(640, 400)
-    for _ in range(10): page.mouse.wheel(0, 120); page.wait_for_timeout(40)
+    # take hold of the bottom edge and drag it up (the wheel only scrolls the typewriter's sheet)
+    w, h = page.viewport_size["width"], page.viewport_size["height"]
+    page.mouse.move(w * 0.3, h - 6); page.mouse.down()
+    for y in range(h - 6, h - 300, -30): page.mouse.move(w * 0.3, y)
+    page.mouse.up()
     page.wait_for_function("document.documentElement.dataset.under === 'open'", timeout=5000)
 
 def unfold(page, pid):
@@ -70,6 +73,25 @@ with sync_playwright() as p:
     check("source: greeting clue", "She still gets the first word wrong sometimes." in html)
     check("source: underside clue", "Paper tends to catch on the underside." in html)
     check("source: no fixture text in the page", "FIXTURE" not in html)
+
+    # the floor: the wheel doesn't reach it, and the bottom edge says nothing until it has been pulled up once
+    edge_cursor = "getComputedStyle(document.querySelector('.pull-edge')).cursor"
+    loupe = "getComputedStyle(document.querySelector('.pointer-loupe')).visibility"
+    page.mouse.move(640, 400)
+    for _ in range(10): page.mouse.wheel(0, 120); page.wait_for_timeout(40)
+    page.wait_for_timeout(300)
+    check("floor: the wheel doesn't lift the page", page.evaluate("document.documentElement.dataset.under") is None)
+    page.mouse.move(640, 797); page.wait_for_timeout(250)
+    check("floor: the edge looks like nothing before it is found", page.evaluate(edge_cursor) == "default" and page.evaluate(loupe) == "hidden")
+    page.mouse.move(640, 400); page.mouse.down(); page.mouse.move(640, 300); page.mouse.up(); page.wait_for_timeout(300)
+    check("floor: dragging elsewhere doesn't lift the page", page.evaluate("document.documentElement.dataset.under") is None)
+    wheel_open(page)
+    check("floor: dragging the bottom edge up lifts the page", True)
+    page.mouse.move(640, 300); page.mouse.down(); page.mouse.move(640, 400); page.mouse.move(640, 500); page.mouse.up()
+    page.wait_for_timeout(400)
+    check("floor: dragging it back down puts the page back", page.evaluate("document.documentElement.dataset.under") is None)
+    page.mouse.move(640, 797); page.wait_for_timeout(250)
+    check("floor: once found, the edge can be held", page.evaluate(edge_cursor) == "grab" and page.evaluate(loupe) == "visible")
 
     # discovery by the typo
     page.wait_for_function("__typewriter.history.length > 0", timeout=15000); idle(page)

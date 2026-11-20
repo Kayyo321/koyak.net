@@ -186,12 +186,39 @@ with sync_playwright() as p:
       tw.type('e'); tw.type('n'); tw.type('d');
       const ms = performance.now() - t0, lines = new Set(tw.page.glyphs.map(g => g.line));
       return { glyphs: tw.page.glyphs.length, lines: lines.size, lowest: Math.min(...lines), fed: tw.page.line, ms }; }""")
-    check("typewriter: text that leaves the top is dropped", res["lines"] <= 12 and res["glyphs"] <= 12 * 24, f"{res['glyphs']} glyphs on {res['lines']} lines after {res['fed']} returns")
-    check("typewriter: line numbers stay small forever", res["lowest"] >= -12, f"lowest line {res['lowest']}")
+    back = page.evaluate("__typewriter.BACK")
+    check("typewriter: text that leaves the top is dropped", res["lines"] <= 12 + back and res["glyphs"] <= (12 + back) * 24, f"{res['glyphs']} glyphs on {res['lines']} lines after {res['fed']} returns")
+    check("typewriter: line numbers stay small forever", res["lowest"] >= -12 - back, f"lowest line {res['lowest']}")
     page.wait_for_timeout(400)
     check("typewriter: still types after 500 lines", typed().endswith("line 499 / end"), typed()[-20:])
     page.locator("#writer-canvas").screenshot(path=f"{SHOTS}/typewriter-endless.png")
     check("typewriter: no console errors", not errors, "; ".join(errors)[:200])
+    ctx.close()
+
+    # scrolling: the wheel rolls the sheet back through the last two messages; anything older is cleared
+    ctx, page, errors = open_page(b, 1440, 900, 1, motion="reduce")
+    page.wait_for_selector("#writer-canvas[data-ready]", timeout=20000)
+    res = page.evaluate("""() => { const tw = __typewriter;
+      const msg = (ch, her) => { for (let i = 0; i < 15; i++) { for (let k = 0; k < 6; k++) tw.type(ch, her); tw.ret(); } tw.ret(); };
+      msg('a', false); msg('b', true); msg('c', false); msg('d', true);
+      const chars = new Set(tw.page.glyphs.map(g => g.ch));
+      return { a: chars.has('a'), b: chars.has('b'), c: chars.has('c'), d: chars.has('d') }; }""")
+    check("scroll: the last two messages are kept", res["c"] and res["d"], str(res))
+    check("scroll: older messages are cleared", not res["a"] and not res["b"], str(res))
+    wb = page.locator("#writer-canvas").bounding_box()
+    page.mouse.move(wb["x"] + wb["width"] / 2, wb["y"] + wb["height"] * 0.3)
+    page.mouse.wheel(0, -200); page.wait_for_timeout(100)
+    check("scroll: wheel up rolls the sheet back", page.evaluate("__typewriter.page.scroll") > 0)
+    for _ in range(40): page.mouse.wheel(0, -400)
+    page.wait_for_timeout(100)
+    st = page.evaluate("({ s: __typewriter.page.scroll, max: __typewriter.maxScroll() })")
+    check("scroll: stops at the start of the older kept message", st["max"] > 0 and abs(st["s"] - st["max"]) < 1, str(st))
+    page.locator("#writer-canvas").screenshot(path=f"{SHOTS}/typewriter-scrolled.png")
+    page.keyboard.press("x"); page.wait_for_timeout(100)
+    check("scroll: typing rolls it back to the line in use", page.evaluate("__typewriter.page.scroll") == 0)
+    page.mouse.wheel(0, 600); page.wait_for_timeout(100)
+    check("scroll: the wheel never opens anything under the page", page.evaluate("document.documentElement.dataset.under") is None)
+    check("scroll: no console errors", not errors, "; ".join(errors)[:200])
     ctx.close()
 
     # 4b. blink frames differ from the open frame only inside the eyes, so the sprite never shifts.

@@ -1,6 +1,7 @@
-/* Under the page. The site is one screen, but if you keep going past the bottom of it (a few more turns of the
-   wheel, a long swipe up, the down key a few times, or Tab past the last control), it gives a little, and
-   then lifts to show the floor underneath, where folded paper collects.
+/* Under the page. The site is one screen, but if you take hold of its bottom edge and drag it up (or swipe up
+   from the very bottom, press the down key a few times, or Tab past the last control), it gives, and then
+   lifts to show the floor underneath, where folded paper collects. The wheel is the typewriter's: it scrolls
+   the sheet. Until the floor has been found once, nothing at the bottom edge says it can be held.
    Everything about what is on the paper comes from the server, one face at a time, when it is turned to:
    POST api/hello (what is here for this visitor), POST api/paper { op: unfold | turn | light, id }.
    The server also sends small scripts for the typewriter; their page effects (fx) are performed here. */
@@ -17,6 +18,13 @@
   const tw = () => window.__typewriter;
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const state = { on: false, open: false, lift: 0, planes: [], pending: null, sheet: null };
+  // found: the visitor has pulled the floor up before (remembered in this browser). Until then the bottom
+  // edge looks like nothing at all: no grab cursor, so no pointer loupe either (pointer.js)
+  const FOUND = "koyak.floor.found";
+  let found = false;
+  try { found = localStorage.getItem(FOUND) === "1"; } catch (_) {}
+  const showFound = () => { if (found) root.dataset.floorFound = "1"; };
+  showFound();
 
   async function post(path, body) {
     try {
@@ -38,13 +46,14 @@
   const moved = () => window.dispatchEvent(new Event("koyak:lift"));
   function openUnder(why) {
     if (!state.on) return;
-    state.open = true; pull = 0;
+    state.open = true;
     root.dataset.under = "open";
+    if (why !== "peek" && !found) { found = true; try { localStorage.setItem(FOUND, "1"); } catch (_) {} showFound(); }
     lift(depth(), why === "peek" ? 300 : 620);
   }
   function closeUnder() {
     if (!state.open && !state.lift) return;
-    state.open = false; pull = 0;
+    state.open = false;
     delete root.dataset.under;
     lift(0, 520);
     // nothing on the floor keeps focus once it is covered: a fold left focused would catch the next Space
@@ -53,45 +62,79 @@
     // a story that was waiting for the page to settle can begin now
     if (state.pending && !root.dataset.paper) { const p = state.pending; state.pending = null; setTimeout(() => tw()?.say(p.steps, { mode: p.mode }), reduce.matches ? 0 : 560); }
   }
-  // resistance: the page gives a few pixels, then a little more, then lets go
-  // the pull leaks away with time (half of it in under two seconds), so only a deliberate, sustained scroll gets there
-  let pull = 0, pulledAt = 0, slack = 0;
+  // resistance before the page lets go: it follows the hand at first, then stiffens
   const give = (p) => Math.min(42, 42 * (1 - Math.exp(-p / 260)));
-  function tug(amount) {
-    if (!state.on || state.open || !room.hidden) return;
-    const now = performance.now();
-    pull = pull * Math.exp(-(now - pulledAt) / 2500) + amount;
-    pulledAt = now;
-    lift(give(pull), 120);
-    clearTimeout(slack);
-    if (pull > 560) { openUnder(); return; }
-    slack = setTimeout(() => { pull = 0; if (!state.open) lift(0, 420); }, 900);
+  const follow = (dy) => { const d = depth(); return dy <= 0 ? 0 : dy < d ? dy * 0.85 : d * 0.85 + (dy - d) * 0.15; };
+  const enough = () => Math.min(140, depth() * 0.4); // how far the edge must be pulled before the page goes all the way
+
+  // once it is up, the wheel (either way) or a drag down puts it back
+  window.addEventListener("wheel", (e) => {
+    if (!state.open || !room.hidden) return;
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+    if (dy < -4) closeUnder();
+  }, { passive: true });
+
+  // the bottom edge you can take hold of with a mouse or pen (touch has its own swipe, below)
+  const edge = document.createElement("div");
+  edge.className = "pull-edge"; edge.setAttribute("aria-hidden", "true"); edge.hidden = true;
+  document.body.appendChild(edge);
+  let drag = null; // { id, y, from: "edge" | "floor", moved }
+  edge.addEventListener("pointerdown", (e) => {
+    if (!state.on || state.open || !room.hidden || e.button !== 0) return;
+    drag = { id: e.pointerId, y: e.clientY, from: "edge" };
+    edge.setPointerCapture(e.pointerId); root.dataset.dragging = "1";
+    e.preventDefault();
+  });
+  // once it is up, the floor or the lifted page can be dragged back down (a plain click on the page still closes it)
+  window.addEventListener("pointerdown", (e) => {
+    if (!state.open || !room.hidden || e.button !== 0 || e.pointerType === "touch") return;
+    if (e.target.closest && e.target.closest("button, a, #writer-canvas, #sheet-room")) return;
+    drag = { id: e.pointerId, y: e.clientY, from: "floor", page: stage.contains(e.target) };
+    under.setPointerCapture(e.pointerId); root.dataset.dragging = "1";
+    e.preventDefault();
+  });
+  const dragMove = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dy = drag.y - e.clientY; // up is positive
+    if (drag.from === "edge") lift(follow(dy), 0);
+    else lift(Math.max(0, depth() + Math.min(0, dy)), 0);
+  };
+  const dragEnd = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dy = drag.y - e.clientY, { from, page } = drag;
+    drag = null; delete root.dataset.dragging;
+    if (from === "edge") { if (dy > enough()) openUnder("drag"); else lift(0, 420); }
+    else if (dy < -60 || (page && Math.abs(dy) < 6)) closeUnder(); else lift(depth(), 300); // a plain click on the page puts it back too
+  };
+  for (const el of [edge, under]) {
+    el.addEventListener("pointermove", dragMove);
+    el.addEventListener("pointerup", dragEnd);
+    el.addEventListener("pointercancel", (e) => { if (drag && e.pointerId === drag.id) { drag = null; delete root.dataset.dragging; lift(state.open ? depth() : 0, 300); } });
   }
 
-  window.addEventListener("wheel", (e) => {
-    if (!state.on || !room.hidden) return;
-    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
-    if (state.open) { if (dy < -4) closeUnder(); return; }
-    if (dy > 0) tug(Math.min(dy, 140));
-  }, { passive: true });
-
+  // touch: a swipe up that starts at the very bottom of the screen; once open, a swipe down anywhere
+  const TOUCH_EDGE = 64;
   let touch = null;
   window.addEventListener("touchstart", (e) => {
-    if (!state.on || !room.hidden || e.touches.length !== 1) { touch = null; return; }
-    touch = { y: e.touches[0].clientY, x: e.touches[0].clientX, t: performance.now() };
-  }, { passive: true });
+    touch = null; delete root.dataset.pulling;
+    if (!state.on || !room.hidden || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    if (!state.open && t.clientY < innerHeight - TOUCH_EDGE) return;
+    touch = { y: t.clientY, x: t.clientX };
+    if (!state.open) root.dataset.pulling = "1"; // the typewriter leaves this swipe alone
+  }, { passive: true, capture: true });
   window.addEventListener("touchmove", (e) => {
     if (!touch) return;
     const dy = touch.y - e.touches[0].clientY, dx = Math.abs(touch.x - e.touches[0].clientX);
     if (dx > Math.abs(dy)) return;
-    if (!state.open && dy > 12) lift(give(dy * 2.1), 0);
+    if (!state.open && dy > 8) lift(follow(dy), 0);
     if (state.open && dy < -12) lift(depth() + dy * 0.6, 0);
   }, { passive: true });
   window.addEventListener("touchend", (e) => {
     if (!touch) return;
     const dy = touch.y - (e.changedTouches[0]?.clientY ?? touch.y);
-    touch = null;
-    if (!state.open) { if (dy > 150) openUnder(); else if (state.lift) lift(0, 420); }
+    touch = null; delete root.dataset.pulling;
+    if (!state.open) { if (dy > enough()) openUnder("drag"); else if (state.lift) lift(0, 420); }
     else if (dy < -60) closeUnder(); else lift(depth(), 300);
   }, { passive: true });
 
@@ -301,7 +344,7 @@
         return;
       case "plane": {
         const list = state.planes.filter((p) => p.id !== f.plane.id).concat([f.plane]);
-        state.on = true;
+        state.on = true; edge.hidden = false;
         sound()?.paper({ gain: 0.7 });
         render(list, f.plane.id);
         if (!state.open) {
@@ -320,13 +363,13 @@
   }
   window.koyakPaper = { fx, open: openUnder, close: closeUnder, get isOpen() { return state.open; } };
 
-  window.addEventListener("koyak:story", (e) => { if (e.detail && e.detail.planes) { state.on = true; render(e.detail.planes); } });
+  window.addEventListener("koyak:story", (e) => { if (e.detail && e.detail.planes) { state.on = true; edge.hidden = false; render(e.detail.planes); } });
 
   /* ---------- what is here for this visitor ---------- */
   post("api/hello").then(async (h) => {
     if (!h || !h.arg) return;
     state.on = true;
-    under.hidden = false;
+    under.hidden = false; edge.hidden = false;
     render(h.planes || []);
     if (!h.steps || !h.steps.length) return;
     await (tw()?.ready || Promise.resolve());

@@ -1,12 +1,12 @@
 /* The pointer's loupe: a small spinning shape (circle, triangle, square, star, heart, circle...) printed as a ring
    of paper dots close around the cursor. It only shows over something that can be clicked (anything whose cursor
-   is a pointer or a zoom), so it says "this does something" and stays off her face and off plain paper.
+   is a pointer, a zoom or a grab), so it says "this does something" and stays off her face and off plain paper.
    Arriving, it whirls in from a point with an overshoot and its edge draws itself round like a clock hand;
    leaving, it runs backwards. */
 (() => {
   const R_CSS = 17;   // the circle's radius in CSS px, hugging the cursor; the other shapes are sized to match it
   const BOX = 64;     // the canvas around it, in CSS px (room for the widest shape at the top of its overshoot)
-  const CLICKY = new Set(["pointer", "zoom-in", "zoom-out"]);
+  const CLICKY = new Set(["pointer", "zoom-in", "zoom-out", "grab"]);
 
   const canvas = document.createElement("canvas");
   canvas.className = "pointer-loupe";

@@ -164,10 +164,16 @@
 
   /* ---------- the page: what has been typed ---------- */
   // glyph lines are counted from the line being typed (0, then -1, -2 ... above it), so nothing grows as you
-  // keep going: each Enter shifts the sheet up one line and forgets whatever has left the top of the canvas.
+  // keep going: each Enter shifts the sheet up one line. Lines that leave the top of the canvas are kept only
+  // while they belong to the last two messages (so the sheet can be scrolled back to read them); anything older
+  // is cleared off the paper, and never more than BACK lines are kept out of sight.
   // line: lines fed so far (only a count); rise: how far the sheet's top edge has climbed, in lines, capped
   // ink: something was printed on the current line; blankAbove: the line above it was left empty
-  const page = { line: 0, col: 0, glyphs: [], rise: 0, feedFrom: 0, feedT0: -1e9, jamT0: -1e9, ink: false, blankAbove: true };
+  // marks: the line each message began on (a message is a run of one speaker's ink); speaker: whose ink was last
+  // scroll / scrollTo: how far the sheet has been rolled back down to read what went before, in photo px
+  const page = { line: 0, col: 0, glyphs: [], rise: 0, feedFrom: 0, feedT0: -1e9, jamT0: -1e9, ink: false, blankAbove: true,
+    marks: [], speaker: null, scroll: 0, scrollTo: 0 };
+  const BACK = 40;
   const anims = { keys: [], bars: [], space: -1e9, lever: -1e9 };
   const rand = (a, b) => a + Math.random() * (b - a);
   const colW = () => (M.print.x1 - M.print.x0) / M.print.cols;
@@ -192,7 +198,7 @@
   }
 
   /* ---------- composition ---------- */
-  function paperTop() { return M.paper.top - page.rise * M.print.line - feedNow(); }
+  function paperTop() { return M.paper.top - page.rise * M.print.line - feedNow() + page.scroll; }
   // the feed animation's offset: -1 line the moment Enter lands, shooting past 0 and settling there
   function feedNow(now = clock.now()) {
     const k = Math.min(1, (now - page.feedT0) / T.feed);
@@ -224,7 +230,7 @@
       for (const g of page.glyphs) {
         if (now < g.at) continue;
         const gx = M.print.x0 + (g.col + 0.5) * colW() + x;
-        const gy = M.print.y + g.line * M.print.line - feedNow(now);
+        const gy = M.print.y + g.line * M.print.line - feedNow(now) + page.scroll;
         if (gy < -HEAD - 60 || gy > M.paper.feed + 60) continue;
         ctx.fillStyle = g.her ? "#0ff" : "#0f0"; // blue channel marks koyak.net's ink
         if (g.lift) { const k = (now - g.lift) / 220; if (k >= 1) continue; ctx.globalAlpha = 1 - k; drawGlyph(ctx, g, gx, gy - k * 4); ctx.globalAlpha = 1; }
@@ -337,12 +343,15 @@
   function busy(now) {
     return state.develop < 1 || now - mood.t0 < mood.ms || now - page.feedT0 < T.feed || now - page.jamT0 < 240 ||
       anims.keys.some((a) => now - a.t0 < T.release) || anims.bars.some((a) => now - a.t0 < T.down) ||
-      now - anims.space < T.release || page.glyphs.some((g) => g.at > now - 20 || (g.lift && now - g.lift < 240));
+      now - anims.space < T.release || page.scroll !== page.scrollTo || page.glyphs.some((g) => g.at > now - 20 || (g.lift && now - g.lift < 240));
   }
   function frame() {
     raf = 0;
     const now = clock.now();
     if (state.develop < 1) state.develop = Math.min(1, (now - state.t0) / 1600);
+    // the sheet rolls toward where the wheel left it
+    const ds = page.scrollTo - page.scroll;
+    page.scroll = reduce.matches || Math.abs(ds) < 0.5 ? page.scrollTo : page.scroll + ds * 0.3;
     compose(now);
     gl.uniform1f(U.uDevelop, state.develop);
     gl.uniform1f(U.uMood, moodNow(now));
@@ -395,6 +404,8 @@
     anims.keys.push({ key, t0: now });
     if (page.col >= M.print.cols) { page.jamT0 = now; sound()?.jam(); kick(); return; } // at the margin: the keys go down, nothing prints
     sound()?.key({ delay: reduce.matches ? 0 : T.up, gain: ai ? 0.75 : 1 }); // heard as the slug meets the paper
+    page.scrollTo = 0; // a key struck rolls the sheet back to the line being typed
+    if (page.speaker !== ai) { page.speaker = ai; page.marks.push(0); } // someone new at the keys: a new message
     const col = page.col++;
     page.ink = true;
     if (!ai) { draft.lines[draft.lines.length - 1][col] = ch; draftChanged(); }
@@ -435,11 +446,33 @@
     page.blankAbove = !page.ink; page.ink = false; // was the line just left empty? (keeps exactly one blank line between turns)
     if (turn === "you") { draft.lines.push([]); draftChanged(); }
     const keep = keepLines();
-    if (page.rise < keep) page.rise++; // past this the top edge is off the canvas for good; stop counting
+    if (page.rise < keep + BACK) page.rise++; // past this the top edge is out of reach for good; stop counting
     for (const g of page.glyphs) g.line--;
-    page.glyphs = page.glyphs.filter((g) => g.line >= -keep); // off the top of the canvas: forgotten
+    page.marks = page.marks.map((m) => m - 1);
+    page.scrollTo = 0;
+    // off the top of the canvas: kept only while it is one of the last two messages (and not too far back)
+    const floor = Math.min(-keep, Math.max(oldestKept(), -BACK));
+    page.glyphs = page.glyphs.filter((g) => g.line >= floor);
+    page.marks = page.marks.filter((m) => m >= floor).slice(-3);
     anims.lever = now;
     describe(); kick();
+  }
+
+  // where the oldest message still kept begins: the last two, plus the one the visitor is still typing
+  function oldestKept() {
+    const n = turn === "you" && page.speaker === false ? 3 : 2;
+    return page.marks.length ? page.marks[Math.max(0, page.marks.length - n)] : 0;
+  }
+  // how far the sheet can be rolled back: until the first kept line sits just under the top of the canvas
+  function maxScroll() {
+    if (!M || !page.glyphs.length) return 0;
+    const top = Math.min(...page.glyphs.map((g) => g.line));
+    return Math.max(0, -HEAD + fontPx() * 1.6 - (M.print.y + top * M.print.line));
+  }
+  function scrollBy(px) {
+    if (!M) return;
+    page.scrollTo = Math.max(0, Math.min(maxScroll(), page.scrollTo + px));
+    kick();
   }
 
   let describeTimer = 0;
@@ -494,6 +527,30 @@
     if (x > M.paper.x0 && x < M.paper.x1 && y > paperTop() && y < M.paper.feed) return { paper: true };
     return null;
   }
+  // the wheel, anywhere on the page, scrolls the sheet: up rolls it back down to read what went before
+  window.addEventListener("wheel", (e) => {
+    if (!M || e.ctrlKey) return;
+    const d = document.documentElement.dataset;
+    if (d.under === "open" || d.paper === "open" || (e.target.closest && e.target.closest("#sheet-room, .underside"))) return;
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+    const r = canvas.getBoundingClientRect();
+    scrollBy(-dy * (M.size[1] + HEAD) / (r.height || 1));
+  }, { passive: true });
+  // and on a touch screen, so does dragging the sheet itself
+  let swipe = null;
+  canvas.addEventListener("touchstart", (e) => {
+    swipe = null;
+    if (!M || e.touches.length !== 1 || document.documentElement.dataset.pulling) return;
+    const t = e.touches[0];
+    if (hit(t)?.paper) swipe = { y: t.clientY };
+  }, { passive: true });
+  canvas.addEventListener("touchmove", (e) => {
+    if (!swipe) return;
+    const y = e.touches[0].clientY, r = canvas.getBoundingClientRect();
+    scrollBy((y - swipe.y) * (M.size[1] + HEAD) / (r.height || 1));
+    swipe.y = y;
+  }, { passive: true });
+  canvas.addEventListener("touchend", () => { swipe = null; }, { passive: true });
   canvas.addEventListener("pointermove", (e) => { if (M && turn !== "you") { canvas.style.cursor = "wait"; return; } if (M) { const h = hit(e); canvas.style.cursor = h && !h.paper ? "pointer" : h ? "text" : "default"; } });
   canvas.addEventListener("pointerdown", (e) => {
     if (!M || turn !== "you") return;
@@ -745,6 +802,6 @@
   }).catch((e) => console.error(e));
 
   const ready = new Promise((res) => { const t = setInterval(() => { if (M) { clearInterval(t); res(); } }, 50); });
-  window.__typewriter = { page, type, space, back, ret, T, clock, render: () => frame(), send, say, ready, draftText, history, layout,
+  window.__typewriter = { page, type, space, back, ret, T, clock, render: () => frame(), send, say, ready, draftText, history, layout, BACK, scrollBy, maxScroll,
     get turn() { return turn; }, get swapped() { return swapped; }, get pending() { return retry ? retry.text : null }, get typing() { return !!draftText(); } }; // for the tests (T: timings)
 })();
