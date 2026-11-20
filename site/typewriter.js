@@ -551,7 +551,11 @@
     swipe.y = y;
   }, { passive: true });
   canvas.addEventListener("touchend", () => { swipe = null; }, { passive: true });
-  canvas.addEventListener("pointermove", (e) => { if (M && turn !== "you") { canvas.style.cursor = "wait"; return; } if (M) { const h = hit(e); canvas.style.cursor = h && !h.paper ? "pointer" : h ? "text" : "default"; } });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!M || turn !== "you") return;
+    const h = hit(e);
+    canvas.style.setProperty("--site-cursor", h ? (h.paper ? "text" : "pointer") : "default");
+  });
   canvas.addEventListener("pointerdown", (e) => {
     if (!M || turn !== "you") return;
     const h = hit(e);
@@ -701,7 +705,10 @@
     canvas.dataset.turn = t;
     setMood((t === "you") === !swapped ? 0 : 1);
     window.dispatchEvent(new CustomEvent("koyak:turn", { detail: { turn: t } })); // plane.js throws / rebuilds the airplane
-    if (t !== "you") { anims.keys = []; canvas.style.cursor = "wait"; } else canvas.style.cursor = "";
+    if (t !== "you") {
+      anims.keys = [];
+      canvas.style.setProperty("--site-cursor", "wait");
+    } else canvas.style.removeProperty("--site-cursor");
     draftChanged();
   }
 

@@ -7,8 +7,8 @@ this repository does: the story lives in a sealed content pack that only the Wor
 ## How it fits together
 
 - **The page stays the page.** `site/` is unchanged for anyone who never looks for the story. `site/underside.js`
-  adds a floor below the bottom of the screen that only appears after a deliberate extra scroll (wheel, a long
-  swipe, the down key a few times, or Tab past the last control). Paper collects there.
+  adds a floor below the screen. Drag the bottom edge up, swipe up from the bottom, press the down key a few
+  times, or Tab past the last control to find it. Paper collects there.
 - **The server decides everything.** `worker/story/` holds a generic engine (`engine.js`) and a Durable Object
   per visitor (`visitor.js`, binding `VISITORS`). Visitors are identified by a random, HttpOnly cookie
   (`koyak_v`). The page sends only what the visitor typed or touched. The server owns the scene, the allowed

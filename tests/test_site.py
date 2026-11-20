@@ -97,7 +97,9 @@ with sync_playwright() as p:
     ctx.close()
 
     # 4. koyak does nothing under the pointer: no change to the word, and the girl's loupe stays off.
-    shot = lambda page, sel: hashlib.md5(page.locator(sel).screenshot()).hexdigest()
+    shot = lambda page, sel: hashlib.md5(page.locator(sel).screenshot(
+        style=".pointer-loupe { visibility: hidden !important; }"
+    )).hexdigest()
     ctx, page, _ = open_page(b, 1440, 900, 1, motion="reduce")  # reduced motion: no drift, so frames are stable
     page.wait_for_selector("#koyak.is-printed"); page.wait_for_timeout(300)
     k0, p0 = shot(page, ".mark"), shot(page, "#plate-canvas")
@@ -110,13 +112,15 @@ with sync_playwright() as p:
     box = page.locator("#plate-canvas").bounding_box()
     page.mouse.move(box["x"] + box["width"] * 0.55, box["y"] + box["height"] * 0.5); page.wait_for_timeout(250)
     check("plate: hovering the girl leaves her screen on", shot(page, "#plate-canvas") == p0)
-    loupe = "getComputedStyle(document.querySelector('.pointer-loupe')).visibility"
-    check("pointer: no loupe over the girl", page.evaluate(loupe) == "hidden")
+    loupe = page.locator(".pointer-loupe")
+    check("pointer: the idle circle replaces the native cursor over the girl",
+          loupe.is_visible() and loupe.get_attribute("data-mode") == "idle"
+          and page.locator("#plate-canvas").evaluate("el => getComputedStyle(el).cursor") == "none")
     c = page.locator(".card").first.bounding_box()
     page.mouse.move(c["x"] + c["width"] / 2, c["y"] + c["height"] / 2); page.wait_for_timeout(250)
-    check("pointer: loupe opens over a clickable card", page.evaluate(loupe) == "visible")
+    check("pointer: the cursor activates over a clickable card", loupe.is_visible() and loupe.get_attribute("data-mode") == "active")
     page.mouse.move(box["x"] + box["width"] * 0.55, box["y"] + box["height"] * 0.5); page.wait_for_timeout(250)
-    check("pointer: loupe leaves when the cursor leaves the card", page.evaluate(loupe) == "hidden")
+    check("pointer: the idle circle returns when leaving the card", loupe.is_visible() and loupe.get_attribute("data-mode") == "idle")
     ctx.close()
 
     # 4a. the typewriter: under the title, left of the girl; keys type, the margin stops, Enter feeds a line.

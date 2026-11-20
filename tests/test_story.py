@@ -5,6 +5,8 @@ Start a Worker with the fixture, then run this:
 It plays through the real homepage and typewriter: the greeting, both ways in, a bad end and its closing line,
 paper faces, replay, the reprise, a reload mid-scene, a doubled submission and two separate visitors."""
 import json, os, sys
+from io import BytesIO
+from PIL import Image, ImageChops
 from playwright.sync_api import sync_playwright
 
 URL = os.environ.get("STORY_URL", "http://localhost:4318/")
@@ -64,8 +66,65 @@ def fold_and_hear(page):
     page.keyboard.press("Escape")
     return said_after(page, before)
 
+def paper_ink_bounds(page, selector, mirrored=False):
+    return page.locator(selector).evaluate("""(line, mirrored) => {
+      const sheet = line.closest('.sheet');
+      const previousTransform = sheet.style.transform;
+      // Compare the ink in paper coordinates before the front/back tilt.
+      sheet.style.transform = 'none';
+      try {
+        const paper = sheet.getBoundingClientRect();
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        const text = walker.nextNode();
+        const range = document.createRange();
+        return [0, text.length - 1].map(offset => {
+          range.setStart(text, offset);
+          range.setEnd(text, offset + 1);
+          const glyph = range.getBoundingClientRect();
+          return [
+            mirrored ? paper.right - glyph.right : glyph.left - paper.left,
+            glyph.top - paper.top, glyph.width, glyph.height,
+          ];
+        });
+      } finally {
+        sheet.style.transform = previousTransform;
+      }
+    }""", mirrored)
+
+def check_ink_alignment(label, ghost, back):
+    aligned = all(abs(a - b) <= 1 for ghost_box, back_box in zip(ghost, back) for a, b in zip(ghost_box, back_box))
+    check(label, aligned, None if aligned else (ghost, back))
+
+def check_painted_ink(page, selector, label):
+    line = page.locator(selector)
+    page.evaluate("document.fonts.ready")
+    clip = line.bounding_box()
+    def capture(style=""):
+        return Image.open(BytesIO(page.screenshot(clip=clip, style=style))).convert("L")
+
+    ink = capture()
+    stock = capture(f"{selector} {{ visibility: hidden !important; }}")
+    # Compare against this exact piece of paper so its grain and shadows cancel out.
+    ink_pixels = sum(ImageChops.subtract(stock, ink).histogram()[65:])
+    check(label, ink_pixels >= 4 * max(1, len(line.inner_text())), f"{ink_pixels} dark ink pixels")
+
 with sync_playwright() as p:
     b = p.chromium.launch(headless=True, args=GL)
+
+    # A touch compositor can drop the filtered front ink until the beam or flip forces a repaint.
+    mobile = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2,
+                           is_mobile=True, has_touch=True, reduced_motion="reduce")
+    _, page, _ = open_page(b, ctx=mobile)
+    page.evaluate("koyakPaper.open()")
+    page.tap('.fold[data-id="origin"]')
+    page.wait_for_selector("#sheet-room.is-open .sheet[data-ink-ready] .face-front")
+    page.evaluate("""async () => {
+        const stock = new Image();
+        stock.src = 'assets/paper-front.webp';
+        await stock.decode();
+    }""")
+    check_painted_ink(page, ".face-front .hand", "first plane: the front has ink on first opening by touch")
+    mobile.close()
 
     # the page as served: two clues in the source, no story, and nothing under the page until the server says so
     ctx, page, errs = open_page(b)
@@ -75,14 +134,13 @@ with sync_playwright() as p:
     check("source: no fixture text in the page", "FIXTURE" not in html)
 
     # the floor: the wheel doesn't reach it, and the bottom edge says nothing until it has been pulled up once
-    edge_cursor = "getComputedStyle(document.querySelector('.pull-edge')).cursor"
-    loupe = "getComputedStyle(document.querySelector('.pointer-loupe')).visibility"
+    loupe = page.locator(".pointer-loupe")
     page.mouse.move(640, 400)
     for _ in range(10): page.mouse.wheel(0, 120); page.wait_for_timeout(40)
     page.wait_for_timeout(300)
     check("floor: the wheel doesn't lift the page", page.evaluate("document.documentElement.dataset.under") is None)
     page.mouse.move(640, 797); page.wait_for_timeout(250)
-    check("floor: the edge looks like nothing before it is found", page.evaluate(edge_cursor) == "default" and page.evaluate(loupe) == "hidden")
+    check("floor: the cursor stays idle over the edge before it is found", loupe.is_visible() and loupe.get_attribute("data-mode") == "idle")
     page.mouse.move(640, 400); page.mouse.down(); page.mouse.move(640, 300); page.mouse.up(); page.wait_for_timeout(300)
     check("floor: dragging elsewhere doesn't lift the page", page.evaluate("document.documentElement.dataset.under") is None)
     wheel_open(page)
@@ -91,7 +149,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(400)
     check("floor: dragging it back down puts the page back", page.evaluate("document.documentElement.dataset.under") is None)
     page.mouse.move(640, 797); page.wait_for_timeout(250)
-    check("floor: once found, the edge can be held", page.evaluate(edge_cursor) == "grab" and page.evaluate(loupe) == "visible")
+    check("floor: once found, the cursor activates over the edge", loupe.is_visible() and loupe.get_attribute("data-mode") == "active")
 
     # discovery by the typo
     page.wait_for_function("__typewriter.history.length > 0", timeout=15000); idle(page)
@@ -109,8 +167,15 @@ with sync_playwright() as p:
     ctx, page, errs = open_page(b)
     idle(page)
     wheel_open(page); unfold(page, "origin")
+    page.locator(".sheet").hover()
+    page.keyboard.down("Shift")
+    crease_ghost = paper_ink_bounds(page, ".face-light .through .hand-crease", mirrored=True)
+    page.keyboard.up("Shift")
     page.click(".corner"); page.wait_for_timeout(300)
     check("first plane: its back", page.evaluate("document.querySelector('.face-back').innerText") == "FIXTURE ORIGIN RULE.")
+    check_ink_alignment("first plane: the flashlight shows the writing along the same crease",
+                        crease_ghost, paper_ink_bounds(page, ".face-back .hand-crease"))
+    check_painted_ink(page, ".face-back .hand-crease", "first plane: graphite on the back is legible without the flashlight")
     fold_and_hear(page)
     check("scene: ambiguity doesn't advance", talk(page, "flibbertigibbet") == "FIXTURE: unclear at the quay.")
     talk(page, "climb the stair")
@@ -122,8 +187,72 @@ with sync_playwright() as p:
     front = unfold(page, "p1")
     note = page.evaluate("[...document.querySelector('.face-front').childNodes].filter(n => n.nodeType === 8).map(n => n.textContent.trim())")
     check("paper: front keeps the line, and a clue in the markup", "worth it" in front and note == ["FIXTURE NOTE."], (front, note))
-    page.focus(".sheet"); page.keyboard.press("Enter"); page.wait_for_timeout(400)
-    check("paper: held to the light", "FIXTURE IMPRESSION." in page.evaluate("document.querySelector('.face-light').innerText"))
+    sheet = page.locator(".sheet")
+    light = page.locator(".face-light")
+    paper = sheet.bounding_box()
+    left = paper["x"] + paper["width"] * .25
+    middle = paper["y"] + paper["height"] * .5
+    page.mouse.click(left, middle)
+    check("paper: a click leaves the flashlight off", not light.is_visible() and sheet.get_attribute("data-face") == "front")
+
+    page.keyboard.down("Shift")
+    page.wait_for_selector("#sheet-room.is-lit .face-light .impression", state="visible")
+    check("paper: holding Shift reveals the impression", light.locator(".impression").inner_text() == "FIXTURE IMPRESSION.")
+    check("paper: the flashlight is masked to a spot", light.evaluate("el => getComputedStyle(el).maskImage.startsWith('radial-gradient(')"))
+    scrap_ghost = paper_ink_bounds(page, ".face-light .through .hand", mirrored=True)
+
+    page.emulate_media(reduced_motion="no-preference")
+    right = paper["x"] + paper["width"] * .75
+    beam = page.evaluate("""({ x, y }) => new Promise(resolve => {
+      const room = document.querySelector('#sheet-room');
+      const position = () => parseFloat(room.style.getPropertyValue('--beam-x'));
+      requestAnimationFrame(() => {
+        const start = position();
+        document.elementFromPoint(x, y).dispatchEvent(new PointerEvent('pointermove', {
+          clientX: x, clientY: y, pointerType: 'mouse', isPrimary: true, shiftKey: true, bubbles: true,
+        }));
+        requestAnimationFrame(() => resolve({ start, next: position() }));
+      });
+    })""", {"x": right, "y": middle})
+    check("paper: the flashlight trails a moving cursor", abs(beam["start"] - left) < 2 and beam["start"] <= beam["next"] < right - 5, beam)
+    page.wait_for_function("""x => {
+      const beamX = document.querySelector('#sheet-room').style.getPropertyValue('--beam-x');
+      return Math.abs(parseFloat(beamX) - x) < 2;
+    }""", arg=right, timeout=2000)
+    page.emulate_media(reduced_motion="reduce")
+
+    page.keyboard.up("Shift")
+    check("paper: releasing Shift switches the flashlight off", not light.is_visible() and sheet.get_attribute("data-face") == "front")
+
+    page.keyboard.down("Meta")
+    page.keyboard.down("Shift")
+    page.keyboard.press("Digit5")
+    screenshot_unlit = not light.is_visible()
+    page.keyboard.up("Meta")
+    check("paper: the screenshot shortcut never arms the flashlight", screenshot_unlit and not light.is_visible())
+    page.keyboard.up("Shift")
+
+    page.keyboard.down("Shift")
+    page.wait_for_selector("#sheet-room.is-lit")
+    page.keyboard.down("Meta")
+    check("paper: Command cancels a flashlight already held with Shift", not light.is_visible())
+    page.keyboard.up("Meta")
+    page.keyboard.up("Shift")
+
+    # The OS can consume keyup, so the next pointer event must also be able to clear Shift.
+    page.evaluate("""window.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift", shiftKey: true }))""")
+    page.wait_for_selector("#sheet-room.is-lit")
+    page.mouse.move(right, middle)
+    check("paper: unmodified pointer movement repairs a missed Shift release", not light.is_visible())
+
+    page.keyboard.down("Shift")
+    page.wait_for_selector("#sheet-room.is-lit")
+    page.click(".corner", modifiers=["Shift"])
+    page.wait_for_selector('.sheet[data-face="back"]')
+    check("paper: the corner still turns the sheet while Shift is held", page.locator(".face-back").inner_text() == "FIXTURE SCRAP ONE.")
+    check_ink_alignment("paper: the flashlight shows the writing in the same spot as the flip",
+                        scrap_ghost, paper_ink_bounds(page, ".face-back .hand"))
+    page.keyboard.up("Shift")
     page.keyboard.press("Escape")
     r = talk(page, "yes")
     check("replay: a bare yes right after the offer", r.startswith("FIXTURE: again from the quay."), r)

@@ -19,7 +19,7 @@
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const state = { on: false, open: false, lift: 0, planes: [], pending: null, sheet: null };
   // found: the visitor has pulled the floor up before (remembered in this browser). Until then the bottom
-  // edge looks like nothing at all: no grab cursor, so no pointer loupe either (pointer.js)
+  // edge keeps the idle cursor until the visitor finds it (pointer.js)
   const FOUND = "koyak.floor.found";
   let found = false;
   try { found = localStorage.getItem(FOUND) === "1"; } catch (_) {}
@@ -206,6 +206,8 @@
   const foldBtn = room.querySelector(".fold-up");
   const status = room.querySelector(".sheet-status");
   let returnFocus = null;
+  let cursor = null, shiftHeld = false, touchId = null;
+  let beam = null, beamFrame = 0, triedLight = false;
 
   function linesInto(el, lines, { note } = {}) {
     el.textContent = "";
@@ -223,62 +225,155 @@
   }
   function showFace(face) {
     sheetEl.dataset.face = face;
-    sheetEl.setAttribute("aria-pressed", String(face === "light"));
+    if (face === "back") faces.back.scrollTop = state.sheet.backScroll;
     cornerBtn.setAttribute("aria-label", face === "back" ? "Turn the sheet back over" : "Turn the sheet over");
-    status.textContent = face === "back" ? "The back of the sheet." : face === "light" ? "The sheet, held up to the light." : "The front of the sheet.";
+    status.textContent = face === "back" ? "The back of the sheet." : "The front of the sheet.";
+    updateFlashlight();
   }
-  async function getFace(face) {
-    const s = state.sheet;
-    if (s.faces[face]) return s.faces[face];
+  function getFace(s, face) {
+    return s.requests[face] ??= loadFace(s, face);
+  }
+  async function loadFace(s, face) {
     const r = await post("api/paper", { op: face === "back" ? "turn" : "light", id: s.id });
-    if (!r || !r.sheet) return null;
-    s.faces[face] = r.sheet;
+    if (!r?.sheet) { delete s.requests[face]; return null; }
+    if (state.sheet !== s) return null;
     if (face === "back") linesInto(faces.back, r.sheet.lines);
     else {
-      faces.light.textContent = "";
-      const through = document.createElement("div"); through.className = "through";
+      const ink = document.createElement("div"); ink.className = "light-ink";
+      const through = document.createElement("div"); through.className = "face through";
       linesInto(through, r.sheet.mirror);
-      const top = document.createElement("div"); top.className = "on-top";
+      const top = document.createElement("div"); top.className = "on-top"; top.setAttribute("aria-hidden", "true");
       linesInto(top, r.sheet.lines);
-      faces.light.append(through, top);
+      ink.appendChild(top);
       if (r.sheet.impression) {
         const imp = document.createElement("p"); imp.className = "impression"; imp.textContent = r.sheet.impression;
-        faces.light.appendChild(imp);
+        ink.appendChild(imp);
       }
+      faces.light.replaceChildren(through, ink);
+      through.scrollTop = s.backScroll;
     }
-    sheetEl.classList.toggle("is-faint", !!r.sheet.faint);
     return r.sheet;
   }
   async function turnOver() {
-    if (!state.sheet) return;
+    const s = state.sheet;
+    if (!s || s.turning) return;
+    s.turning = true;
     const to = sheetEl.dataset.face === "back" ? "front" : "back";
-    if (to === "back" && !(await getFace("back"))) return;
+    if (to === "back" && !(await getFace(s, "back"))) { s.turning = false; return; }
+    if (state.sheet !== s) return;
     sound()?.paper({ gain: 0.8 });
-    if (reduce.matches) { showFace(to); return; }
-    sheetEl.classList.add("is-turning");
-    await wait(170);
+    if (!reduce.matches) {
+      sheetEl.classList.add("is-turning");
+      await wait(170);
+    }
+    if (state.sheet !== s) return;
+    if (to === "front") s.backScroll = faces.back.scrollTop;
     showFace(to);
     sheetEl.classList.remove("is-turning");
+    s.turning = false;
   }
-  async function holdUp() {
-    if (!state.sheet) return;
-    if (sheetEl.dataset.face === "light") { showFace("front"); return; }
-    if (!(await getFace("light"))) return;
-    sound()?.paper({ gain: 0.4 });
-    showFace("light");
+
+  function placeBeam(el, x, y) {
+    el.style.setProperty("--beam-x", `${x.toFixed(2)}px`);
+    el.style.setProperty("--beam-y", `${y.toFixed(2)}px`);
   }
+  function drawFlashlight(now) {
+    const rect = sheetEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    const target = cursor ?? { x: cx, y: cy };
+    const follow = beam && !reduce.matches ? 1 - Math.exp(-(now - beam.time) / 48) : 1;
+    const x = beam ? beam.x + (target.x - beam.x) * follow : target.x;
+    const y = beam ? beam.y + (target.y - beam.y) * follow : target.y;
+    beam = { x, y, time: now };
+
+    // The beam stays in screen space as the sheet rotates beneath it.
+    const { clientWidth: width, clientHeight: height } = sheetEl;
+    const inverse = new DOMMatrixReadOnly(getComputedStyle(sheetEl).transform).inverse();
+    const point = inverse.transformPoint({ x: x - cx, y: y - cy });
+    const localX = width / 2 + point.x, localY = height / 2 + point.y;
+    placeBeam(room, x, y);
+    placeBeam(sheetEl, localX, localY);
+    if (!triedLight && sheetEl.dataset.face === "front" && localX >= 0 && localX <= width && localY >= 0 && localY <= height) {
+      triedLight = true;
+      getFace(state.sheet, "light");
+    }
+    beamFrame = requestAnimationFrame(drawFlashlight);
+  }
+  function updateFlashlight() {
+    const lit = room.classList.toggle("is-lit", !!state.sheet && (shiftHeld || touchId !== null));
+    if (lit) {
+      const through = faces.light.querySelector(".through");
+      if (through && sheetEl.dataset.face === "front") through.scrollTop = state.sheet.backScroll;
+      if (!beamFrame) beamFrame = requestAnimationFrame(drawFlashlight);
+    } else {
+      cancelAnimationFrame(beamFrame);
+      beamFrame = 0;
+      beam = null;
+      triedLight = false;
+    }
+  }
+  function aim(e) { cursor = { x: e.clientX, y: e.clientY }; }
+  window.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "touch" || e.pointerId === touchId) aim(e);
+  }, { passive: true });
+  window.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "touch") aim(e);
+  }, { passive: true });
+  function setShiftHeld(held) {
+    if (shiftHeld === held) return;
+    shiftHeld = held;
+    updateFlashlight();
+  }
+  const plainShift = (e) => e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey;
+  function releaseStaleShift(e) {
+    if (e.pointerType !== "touch" && !plainShift(e)) setShiftHeld(false);
+  }
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Shift" && !e.repeat) setShiftHeld(plainShift(e));
+    else releaseStaleShift(e);
+  }, true);
+  // A system shortcut can consume the Shift keyup. Mouse and pen events can confirm a release but never arm the beam.
+  for (const event of ["keyup", "pointerdown", "pointermove", "pointerup"]) {
+    window.addEventListener(event, releaseStaleShift, { capture: true, passive: true });
+  }
+  sheetEl.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "touch" || !e.isPrimary || e.target.closest("button")) return;
+    touchId = e.pointerId;
+    aim(e);
+    updateFlashlight();
+  }, { passive: true });
+  for (const event of ["pointerup", "pointercancel"]) window.addEventListener(event, (e) => {
+    if (e.pointerId !== touchId) return;
+    touchId = null;
+    cursor = null;
+    updateFlashlight();
+  });
+  function resetFlashlight() {
+    shiftHeld = false;
+    touchId = null;
+    cursor = null;
+    updateFlashlight();
+  }
+  window.addEventListener("blur", resetFlashlight);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) resetFlashlight(); });
+  faces.front.addEventListener("scroll", () => {
+    faces.light.style.setProperty("--paper-scroll", `${-faces.front.scrollTop}px`);
+  }, { passive: true });
+
   async function unfold(id, from) {
     const r = await post("api/paper", { op: "unfold", id });
     if (!r || !r.sheet) return;
     sound()?.paper();
     returnFocus = from || null;
-    state.sheet = { id, faces: { front: r.sheet } };
+    state.sheet = { id, requests: {}, backScroll: 0 };
     linesInto(faces.front, r.sheet.lines, { note: r.sheet.note });
     faces.back.textContent = ""; faces.light.textContent = "";
-    sheetEl.classList.remove("is-faint");
+    faces.front.scrollTop = 0;
+    faces.light.style.removeProperty("--paper-scroll");
+    sheetEl.classList.remove("is-turning");
     sheetEl.dataset.kind = shelf.querySelector(`[data-id="${id}"]`)?.dataset.kind || "";
-    showFace("front");
     room.hidden = false;
+    showFace("front");
     root.dataset.paper = "open";
     requestAnimationFrame(() => room.classList.add("is-open"));
     sheetEl.focus({ preventScroll: true });
@@ -291,12 +386,12 @@
     room.classList.remove("is-open");
     delete root.dataset.paper;
     state.sheet = null;
+    touchId = null;
+    updateFlashlight();
     setTimeout(() => { room.hidden = true; }, reduce.matches ? 0 : 260);
     if (state.pending) { closeUnder(); document.activeElement?.blur?.(); } // the story starts once the page is back where it was
     else if (returnFocus) returnFocus.focus({ preventScroll: true });
   }
-  sheetEl.addEventListener("click", (e) => { if (!e.target.closest("button")) holdUp(); });
-  sheetEl.addEventListener("keydown", (e) => { if (e.target === sheetEl && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); holdUp(); } });
   cornerBtn.addEventListener("click", (e) => { e.stopPropagation(); turnOver(); });
   foldBtn.addEventListener("click", foldUp);
   room.addEventListener("click", (e) => { if (e.target === room) foldUp(); });

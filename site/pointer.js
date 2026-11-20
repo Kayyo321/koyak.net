@@ -1,12 +1,9 @@
-/* The pointer's loupe: a small spinning shape (circle, triangle, square, star, heart, circle...) printed as a ring
-   of paper dots close around the cursor. It only shows over something that can be clicked (anything whose cursor
-   is a pointer, a zoom or a grab), so it says "this does something" and stays off her face and off plain paper.
-   Arriving, it whirls in from a point with an overshoot and its edge draws itself round like a clock hand;
-   leaving, it runs backwards. */
+/* The pointer is a small circle of paper dots. Over a control, it grows and spins through the loupe's shapes. */
 (() => {
-  const R_CSS = 17;   // the circle's radius in CSS px, hugging the cursor; the other shapes are sized to match it
+  const R_CSS = 17;   // the active circle's radius in CSS px; the other shapes are sized to match it
   const BOX = 64;     // the canvas around it, in CSS px (room for the widest shape at the top of its overshoot)
-  const CLICKY = new Set(["pointer", "zoom-in", "zoom-out", "grab"]);
+  const INTERACTIVE = new Set(["pointer", "zoom-in", "zoom-out", "grab"]);
+  const root = document.documentElement;
 
   const canvas = document.createElement("canvas");
   canvas.className = "pointer-loupe";
@@ -67,27 +64,33 @@
       return sdHeart(p / s + vec2(0.0, 0.52)) * s;
     }
 
-    void main() {
-      vec2 px = gl_FragCoord.xy;
-      float e = clamp(uLens, 0.0, 1.0), b = e - 1.0;
-      float pop = max(1.0 + 2.70158 * b * b * b + 1.70158 * b * b, 0.0);
-      float R = max(uR * uDpr * pop, 1e-4);
-      float spin = uTime * 0.9 * uMotion + (1.0 - e) * 5.0;
-      vec2 p = rot(spin) * (px - uRes * 0.5);
-      float seg = uTime / 1.7 * uMotion;
-      int i0 = int(mod(floor(seg), 5.0)), i1 = int(mod(floor(seg) + 1.0, 5.0));
-      float d = mix(shape(i0, p, R), shape(i1, p, R), smoothstep(0.55, 1.0, fract(seg)));
-      // the edge, printed as a ring of fine paper dots, each with a rim of night so it reads on light things too
-      float cell = 3.0 * uDpr;
+    // Paper dots have a rim of night so they read on light surfaces too.
+    vec4 ring(vec2 px, float d, float cell, float strength) {
       float hw = 0.6 * cell, aa = 0.75;
       float band = 1.0 - smoothstep(hw - aa, hw + aa, abs(d));
       float r = length(fract(px / cell) - 0.5);
       float core = 1.0 - smoothstep(0.22, 0.32, r);
       float dotm = 1.0 - smoothstep(0.36, 0.47, r);
-      float wipe = step(atan(p.y, p.x) / 6.2831853 + 0.5, smoothstep(0.0, 0.75, e));
-      float a = band * dotm * wipe * 0.95;
+      float a = band * dotm * strength;
       vec3 col = mix(NIGHT, PAPER, core / max(dotm, 1e-3));
-      gl_FragColor = vec4(col * a, a);
+      return vec4(col * a, a);
+    }
+
+    void main() {
+      vec2 px = gl_FragCoord.xy, centered = px - uRes * 0.5;
+      float e = clamp(uLens, 0.0, 1.0), b = e - 1.0;
+      vec4 idle = ring(px, length(centered) - 6.2 * uDpr, 2.5 * uDpr, 0.95);
+      if (e == 0.0) { gl_FragColor = idle; return; }
+      float pop = max(1.0 + 2.70158 * b * b * b + 1.70158 * b * b, 0.0);
+      float R = max(uR * uDpr * pop, 1e-4);
+      float spin = uTime * 0.9 * uMotion + (1.0 - e) * 5.0;
+      vec2 p = rot(spin) * centered;
+      float seg = uTime / 1.7 * uMotion;
+      int i0 = int(mod(floor(seg), 5.0)), i1 = int(mod(floor(seg) + 1.0, 5.0));
+      float d = mix(shape(i0, p, R), shape(i1, p, R), smoothstep(0.55, 1.0, fract(seg)));
+      float wipe = step(atan(p.y, p.x) / 6.2831853 + 0.5, smoothstep(0.0, 0.75, e));
+      vec4 active = ring(px, d, 3.0 * uDpr, wipe * 0.95);
+      gl_FragColor = mix(idle, active, smoothstep(0.1, 0.7, e));
     }`;
 
   function compile(type, src) {
@@ -127,14 +130,14 @@
   }
   resize();
 
-  const ptr = { x: 0, y: 0, known: false, touch: false };
-  const state = { lens: 0, target: 0, t0: performance.now(), last: 0 };
+  const ptr = { x: 0, y: 0, known: false };
+  const state = { lens: 0, t0: performance.now(), last: 0 };
 
   // over something clickable? (read in the frame, after the page's own handlers have set their cursors)
   function over() {
-    if (!ptr.known || ptr.touch || document.hidden) return false;
+    if (root.hasAttribute("data-dragging")) return true;
     const el = document.elementFromPoint(ptr.x, ptr.y);
-    return !!el && CLICKY.has(getComputedStyle(el).cursor);
+    return !!el && INTERACTIVE.has(getComputedStyle(el).getPropertyValue("--site-cursor").trim());
   }
   function place() {
     // whole device pixels, so the dots stay crisp
@@ -142,39 +145,54 @@
     canvas.style.transform = `translate(${x}px, ${y}px)`;
   }
 
-  let raf = 0, followUntil = 0;
+  let raf = 0, followUntil = 0, available = true;
+  function hide() {
+    ptr.known = false;
+    state.lens = 0;
+    delete canvas.dataset.mode;
+    delete root.dataset.customPointer;
+    cancelAnimationFrame(raf);
+    raf = 0;
+  }
   function frame(now) {
     raf = 0;
+    if (!ptr.known || document.hidden) return;
     resize();
-    state.target = over() ? 1 : 0;
+    const target = over() ? 1 : 0;
     // arrives in ~0.4 s, leaves in ~0.3 s (the shader shapes both from this one number)
     const dt = Math.min(64, now - (state.last || now)); state.last = now;
-    if (reduce.matches) state.lens = state.target;
-    else if (state.lens < state.target) state.lens = Math.min(state.target, state.lens + dt / 400);
-    else if (state.lens > state.target) state.lens = Math.max(state.target, state.lens - dt / 300);
-    canvas.style.visibility = state.lens > 0 ? "visible" : "hidden";
-    if (state.lens > 0) {
-      place();
-      gl.uniform1f(U.uTime, (now - state.t0) / 1000);
-      gl.uniform1f(U.uLens, state.lens);
-      gl.uniform1f(U.uMotion, reduce.matches ? 0 : 1);
-      gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-    }
-    // keep going while it is on screen (it spins), while it comes or goes, and while the page slides under a still cursor
-    if (state.lens > 0 || state.lens !== state.target || now < followUntil) raf = requestAnimationFrame(frame);
-  }
-  const kick = () => { if (!raf) raf = requestAnimationFrame(frame); };
+    if (reduce.matches) state.lens = target;
+    else if (state.lens < target) state.lens = Math.min(target, state.lens + dt / 400);
+    else if (state.lens > target) state.lens = Math.max(target, state.lens - dt / 300);
 
-  window.addEventListener("pointermove", (e) => {
-    ptr.x = e.clientX; ptr.y = e.clientY; ptr.known = true; ptr.touch = e.pointerType === "touch";
+    place();
+    gl.uniform1f(U.uTime, (now - state.t0) / 1000);
+    gl.uniform1f(U.uLens, state.lens);
+    gl.uniform1f(U.uMotion, reduce.matches ? 0 : 1);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    const mode = target ? "active" : "idle";
+    if (canvas.dataset.mode !== mode) canvas.dataset.mode = mode;
+    if (!root.hasAttribute("data-custom-pointer")) root.dataset.customPointer = "";
+
+    if ((!reduce.matches && (state.lens > 0 || target)) || now < followUntil) raf = requestAnimationFrame(frame);
+  }
+  const kick = () => { if (available && ptr.known && !raf) raf = requestAnimationFrame(frame); };
+
+  function track(e) {
+    if (e.pointerType === "touch") { hide(); return; }
+    ptr.x = e.clientX; ptr.y = e.clientY; ptr.known = true;
     kick();
-  }, { passive: true, capture: true });
-  document.documentElement.addEventListener("pointerleave", () => { ptr.known = false; kick(); });
-  window.addEventListener("blur", () => { ptr.known = false; kick(); });
+  }
+  for (const event of ["pointermove", "pointerdown"]) window.addEventListener(event, track, { passive: true, capture: true });
+  root.addEventListener("pointerleave", hide);
+  window.addEventListener("blur", hide);
+  window.addEventListener("resize", kick);
+  reduce.addEventListener("change", kick);
+  canvas.addEventListener("webglcontextlost", () => { available = false; hide(); });
   // things change under a cursor that isn't moving: the page lifts, a sheet opens, a button is enabled
   const follow = (ms) => { followUntil = Math.max(followUntil, performance.now() + ms); kick(); };
   window.addEventListener("koyak:lift", () => follow(1300));
   for (const t of ["transitionrun", "transitionend", "click", "keydown"]) document.addEventListener(t, () => follow(400), { passive: true, capture: true });
-  document.addEventListener("visibilitychange", kick);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) hide(); });
 })();

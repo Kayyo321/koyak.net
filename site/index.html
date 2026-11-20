@@ -62,14 +62,33 @@
   <div class="fx" id="fx" aria-hidden="true"><div class="fx-dim"></div></div>
 
   <div class="sheet-room" id="sheet-room" role="dialog" aria-modal="true" aria-label="An unfolded paper plane" data-own-keys hidden>
-    <div class="lamp" aria-hidden="true"></div>
-    <div class="sheet" tabindex="0" role="button" aria-pressed="false" aria-label="The sheet. Press to hold it up to the light" aria-describedby="sheet-status">
-      <div class="face face-front"></div>
-      <div class="face face-back"></div>
-      <div class="face face-light"></div>
-      <button class="corner" type="button" aria-label="Turn the sheet over"><span aria-hidden="true"></span></button>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <defs>
+        <filter id="ink-front" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+          <feImage data-src="assets/paper-warp-front.png" preserveAspectRatio="none" result="relief"/>
+          <feDisplacementMap in="SourceGraphic" in2="relief" scale="32" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+        <filter id="ink-back" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+          <feImage data-src="assets/paper-warp-back.png" preserveAspectRatio="none" result="relief"/>
+          <feDisplacementMap in="SourceGraphic" in2="relief" scale="32" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+      </defs>
+    </svg>
+    <div class="flashlight" aria-hidden="true"></div>
+    <div class="sheet" tabindex="0" role="group" aria-label="The sheet" aria-describedby="sheet-hint sheet-status">
+      <div class="paper-skin">
+        <div class="paper-stock" aria-hidden="true"><span class="paper-exposed"></span></div>
+        <div class="face face-front"></div>
+        <div class="face face-back"></div>
+        <div class="face face-light"></div>
+      </div>
+      <button class="corner" type="button" aria-label="Turn the sheet over"></button>
     </div>
     <button class="fold-up" type="button" aria-label="Fold it back up"><span aria-hidden="true"></span></button>
+    <p class="sheet-hint" id="sheet-hint">
+      <span class="sheet-hint-key">Hold <kbd>Shift</kbd> to shine the flashlight</span>
+      <span class="sheet-hint-touch">Hold a finger on the paper to shine the flashlight</span>
+    </p>
     <p class="sr-only sheet-status" id="sheet-status" aria-live="polite"></p>
   </div>
 
@@ -81,6 +100,7 @@
   <script src="plane.js"></script>
   <script src="cards.js"></script>
   <script src="cardsprint.js"></script>
+  <script src="paper.js"></script>
   <script src="underside.js"></script>
   <script src="pointer.js"></script>
 </body>
