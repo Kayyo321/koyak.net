@@ -32,7 +32,10 @@
     state.lift = Math.max(0, px);
     root.style.setProperty("--lift-ms", (reduce.matches ? 0 : ms) + "ms");
     root.style.setProperty("--lift", state.lift + "px");
+    moved();
   }
+  // the page slides under a cursor that may not be moving: the plate's loupe follows it until the slide ends
+  const moved = () => window.dispatchEvent(new Event("koyak:lift"));
   function openUnder(why) {
     if (!state.on) return;
     state.open = true; pull = 0;
@@ -44,6 +47,9 @@
     state.open = false; pull = 0;
     delete root.dataset.under;
     lift(0, 520);
+    // nothing on the floor keeps focus once it is covered: a fold left focused would catch the next Space
+    // (typed for the typewriter) and open its sheet again
+    if (under.contains(document.activeElement)) document.activeElement.blur();
     // a story that was waiting for the page to settle can begin now
     if (state.pending && !root.dataset.paper) { const p = state.pending; state.pending = null; setTimeout(() => tw()?.say(p.steps, { mode: p.mode }), reduce.matches ? 0 : 560); }
   }
@@ -268,7 +274,7 @@
     switch (f.t) {
       case "dim": fade(dimEl, f.to ?? 1, f.ms ?? 1000); await wait(reduce.matches ? 0 : f.ms ?? 1000); return;
       case "tilt":
-        if (!reduce.matches) { root.style.setProperty("--lift-ms", (f.ms ?? 1200) + "ms"); root.style.setProperty("--tilt", (f.deg ?? 0) + "deg"); await wait(f.ms ?? 1200); }
+        if (!reduce.matches) { root.style.setProperty("--lift-ms", (f.ms ?? 1200) + "ms"); root.style.setProperty("--tilt", (f.deg ?? 0) + "deg"); moved(); await wait(f.ms ?? 1200); }
         return;
       case "overlay": {
         const art = document.createElement("div");
@@ -285,7 +291,7 @@
         const ms = f.ms ?? 1200;
         fade(dimEl, 0, ms);
         for (const a of fxLayer.querySelectorAll(".fx-art")) { fade(a, 0, ms); setTimeout(() => a.remove(), (reduce.matches ? 0 : ms) + 50); }
-        root.style.setProperty("--lift-ms", (reduce.matches ? 0 : ms) + "ms"); root.style.setProperty("--tilt", "0deg");
+        root.style.setProperty("--lift-ms", (reduce.matches ? 0 : ms) + "ms"); root.style.setProperty("--tilt", "0deg"); moved();
         await wait(reduce.matches ? 0 : ms);
         return;
       }

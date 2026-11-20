@@ -280,9 +280,11 @@
     if (reduce.matches) state.lens = state.lensTarget;
     else if (state.lens < state.lensTarget) state.lens = Math.min(state.lensTarget, state.lens + dt / 550);
     else if (state.lens > state.lensTarget) state.lens = Math.max(state.lensTarget, state.lens - dt / 420);
+    const following = sliding.size > 0 || now < followUntil;
+    if (following) follow();
     draw(now);
     const drifting = !reduce.matches && state.visible;
-    const busy = animatingIn || (RIP && RIP.active(now)) || state.lens !== state.lensTarget || (state.lens > 0 && !reduce.matches) || face.tweening;
+    const busy = animatingIn || following || (RIP && RIP.active(now)) || state.lens !== state.lensTarget || (state.lens > 0 && !reduce.matches) || face.tweening;
     if (busy) raf = requestAnimationFrame(frame);
     else if (drifting) { // the slow drift only needs ~20 fps
       clearTimeout(last); last = setTimeout(() => { if (!raf) raf = requestAnimationFrame(frame); }, 50);
@@ -298,6 +300,26 @@
     kick();
   });
   canvas.addEventListener("pointerleave", () => { if (!state.held) { state.lensTarget = 0; kick(); } });
+  // when the page lifts or settles under a cursor that isn't moving, no pointer event comes, so while it moves
+  // the loupe finds the cursor again every frame (and goes, or comes back, as the plate slides out from under it)
+  const ptr = { x: 0, y: 0, known: false, touch: false };
+  window.addEventListener("pointermove", (e) => { ptr.x = e.clientX; ptr.y = e.clientY; ptr.known = true; ptr.touch = e.pointerType === "touch"; }, { passive: true, capture: true });
+  let followUntil = 0;
+  function follow() {
+    if (!ptr.known || ptr.touch || state.held) return;
+    const over = document.elementFromPoint(ptr.x, ptr.y) === canvas;
+    if (over) {
+      const r = canvas.getBoundingClientRect();
+      state.mouse = [(ptr.x - r.left) / r.width, 1 - (ptr.y - r.top) / r.height];
+    }
+    state.lensTarget = over ? 1 : 0;
+  }
+  // follow for as long as anything holding the plate is sliding, and a moment after (an instant move has no transition)
+  const sliding = new Set();
+  const settle = () => { followUntil = Math.max(followUntil, performance.now() + 80); kick(); };
+  window.addEventListener("koyak:lift", settle);
+  document.addEventListener("transitionrun", (e) => { if (e.propertyName === "transform" && e.target.contains && e.target.contains(canvas)) { sliding.add(e.target); kick(); } });
+  for (const t of ["transitionend", "transitioncancel"]) document.addEventListener(t, (e) => { if (e.propertyName === "transform" && sliding.delete(e.target)) settle(); });
   window.addEventListener("koyak:ripple", kick);
   new IntersectionObserver(([e]) => { state.visible = e.isIntersecting; kick(); }).observe(canvas);
   document.addEventListener("visibilitychange", () => { state.visible = !document.hidden; kick(); });
