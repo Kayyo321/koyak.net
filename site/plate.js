@@ -1,7 +1,7 @@
 /* Night Press, ported from lab/night-press.html to WebGL.
    Halftones the mascot plate live: rotated AM screen, posterized tone, seeded
-   misregistration, offset crops re-pressed at another pitch, and a loupe under the cursor: a spinning
-   shape (circle, triangle, square, star, heart, circle...) that lifts the screen off whatever is under it.
+   misregistration, offset crops re-pressed at another pitch, and a loupe she can look through when she holds
+   a gaze: a spinning shape (circle, triangle, square, star, heart, circle...) that lifts the screen off her eye.
    One develop moment on load. */
 (() => {
   const canvas = document.getElementById("plate-canvas");
@@ -280,11 +280,9 @@
     if (reduce.matches) state.lens = state.lensTarget;
     else if (state.lens < state.lensTarget) state.lens = Math.min(state.lensTarget, state.lens + dt / 550);
     else if (state.lens > state.lensTarget) state.lens = Math.max(state.lensTarget, state.lens - dt / 420);
-    const following = sliding.size > 0 || now < followUntil;
-    if (following) follow();
     draw(now);
     const drifting = !reduce.matches && state.visible;
-    const busy = animatingIn || following || (RIP && RIP.active(now)) || state.lens !== state.lensTarget || (state.lens > 0 && !reduce.matches) || face.tweening;
+    const busy = animatingIn || (RIP && RIP.active(now)) || state.lens !== state.lensTarget || (state.lens > 0 && !reduce.matches) || face.tweening;
     if (busy) raf = requestAnimationFrame(frame);
     else if (drifting) { // the slow drift only needs ~20 fps
       clearTimeout(last); last = setTimeout(() => { if (!raf) raf = requestAnimationFrame(frame); }, 50);
@@ -292,34 +290,8 @@
   }
   const kick = () => { if (!raf && state.visible) raf = requestAnimationFrame(frame); };
 
-  canvas.addEventListener("pointermove", (e) => {
-    if (state.held) return; // she is holding a look; the loupe is hers for a moment
-    const r = canvas.getBoundingClientRect();
-    state.mouse = [(e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height];
-    state.lensTarget = e.pointerType === "touch" ? 0 : 1;
-    kick();
-  });
-  canvas.addEventListener("pointerleave", () => { if (!state.held) { state.lensTarget = 0; kick(); } });
-  // when the page lifts or settles under a cursor that isn't moving, no pointer event comes, so while it moves
-  // the loupe finds the cursor again every frame (and goes, or comes back, as the plate slides out from under it)
-  const ptr = { x: 0, y: 0, known: false, touch: false };
-  window.addEventListener("pointermove", (e) => { ptr.x = e.clientX; ptr.y = e.clientY; ptr.known = true; ptr.touch = e.pointerType === "touch"; }, { passive: true, capture: true });
-  let followUntil = 0;
-  function follow() {
-    if (!ptr.known || ptr.touch || state.held) return;
-    const over = document.elementFromPoint(ptr.x, ptr.y) === canvas;
-    if (over) {
-      const r = canvas.getBoundingClientRect();
-      state.mouse = [(ptr.x - r.left) / r.width, 1 - (ptr.y - r.top) / r.height];
-    }
-    state.lensTarget = over ? 1 : 0;
-  }
-  // follow for as long as anything holding the plate is sliding, and a moment after (an instant move has no transition)
-  const sliding = new Set();
-  const settle = () => { followUntil = Math.max(followUntil, performance.now() + 80); kick(); };
-  window.addEventListener("koyak:lift", settle);
-  document.addEventListener("transitionrun", (e) => { if (e.propertyName === "transform" && e.target.contains && e.target.contains(canvas)) { sliding.add(e.target); kick(); } });
-  for (const t of ["transitionend", "transitioncancel"]) document.addEventListener(t, (e) => { if (e.propertyName === "transform" && sliding.delete(e.target)) settle(); });
+  // the cursor no longer lifts the screen off her: the loupe here only opens for a held look ("gaze", below).
+  // The shape that follows the cursor over clickable things lives in pointer.js.
   window.addEventListener("koyak:ripple", kick);
   new IntersectionObserver(([e]) => { state.visible = e.isIntersecting; kick(); }).observe(canvas);
   document.addEventListener("visibilitychange", () => { state.visible = !document.hidden; kick(); });
@@ -462,9 +434,9 @@
       if (gen === face.gen) await fade("open", 600, 1);
     } else if (cue === "gaze") {
       if (face.from !== "open") cut("open");
-      state.held = true; state.mouse = EYE.slice(); state.lensTarget = 1; kick();
+      state.mouse = EYE.slice(); state.lensTarget = 1; kick();
       await wait(ms);
-      state.held = false; state.lensTarget = 0; kick();
+      state.lensTarget = 0; kick();
     } else if (cue === "smile" && face.tex["sleep-half"]) {
       await fade("sleep-half", 1100, 1);
       if (gen === face.gen) await wait(ms);

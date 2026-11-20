@@ -315,6 +315,9 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .fold-up:hover, .fold-up:focus-visible { opacity: 1; }
 .fold-up:focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
 
+/* the pointer's loupe (pointer.js): a little shape around the cursor, over anything that can be clicked */
+.pointer-loupe { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; visibility: hidden; }
+
 /* ---------- what the story does to the page (fx) ---------- */
 .fx { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
 .fx-dim { position: absolute; inset: 0; background: #010110; opacity: 0; }

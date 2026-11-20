@@ -109,7 +109,14 @@ with sync_playwright() as p:
     check("koyak: hover does not reach the girl's loupe", shot(page, "#plate-canvas") == p0)
     box = page.locator("#plate-canvas").bounding_box()
     page.mouse.move(box["x"] + box["width"] * 0.55, box["y"] + box["height"] * 0.5); page.wait_for_timeout(250)
-    check("plate: loupe still opens over the girl", shot(page, "#plate-canvas") != p0)
+    check("plate: hovering the girl leaves her screen on", shot(page, "#plate-canvas") == p0)
+    loupe = "getComputedStyle(document.querySelector('.pointer-loupe')).visibility"
+    check("pointer: no loupe over the girl", page.evaluate(loupe) == "hidden")
+    c = page.locator(".card").first.bounding_box()
+    page.mouse.move(c["x"] + c["width"] / 2, c["y"] + c["height"] / 2); page.wait_for_timeout(250)
+    check("pointer: loupe opens over a clickable card", page.evaluate(loupe) == "visible")
+    page.mouse.move(box["x"] + box["width"] * 0.55, box["y"] + box["height"] * 0.5); page.wait_for_timeout(250)
+    check("pointer: loupe leaves when the cursor leaves the card", page.evaluate(loupe) == "hidden")
     ctx.close()
 
     # 4a. the typewriter: under the title, left of the girl; keys type, the margin stops, Enter feeds a line.

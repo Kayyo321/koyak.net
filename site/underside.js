@@ -34,7 +34,7 @@
     root.style.setProperty("--lift", state.lift + "px");
     moved();
   }
-  // the page slides under a cursor that may not be moving: the plate's loupe follows it until the slide ends
+  // the page slides under a cursor that may not be moving: the pointer's loupe (pointer.js) follows it until the slide ends
   const moved = () => window.dispatchEvent(new Event("koyak:lift"));
   function openUnder(why) {
     if (!state.on) return;
