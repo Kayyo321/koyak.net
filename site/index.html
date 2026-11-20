@@ -35,8 +35,9 @@
     <figure class="writer" id="writer">
       <canvas id="writer-canvas" role="img" aria-label="A typewriter. The sheet is blank. Type to write on it."></canvas>
       <textarea id="writer-input" class="writer-input" aria-label="Type on the typewriter" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
-      <button class="send" id="writer-send" type="button" aria-label="Send what you typed to koyak.net" title="send" disabled>
-        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5 21 3Z"/></svg>
+      <button class="send is-empty" id="writer-send" type="button" aria-label="Send what you typed to koyak.net" title="send" disabled>
+        <canvas class="plane" aria-hidden="true"></canvas>
+        <img class="plane-img" src="assets/plane.png" alt="" hidden>
       </button>
       <p class="sr-only" id="writer-status" aria-live="polite"></p>
     </figure>
@@ -51,6 +52,7 @@
   <script src="plate.js"></script>
   <script src="koyak.js"></script>
   <script src="typewriter.js"></script>
+  <script src="plane.js"></script>
   <script src="cards.js"></script>
   <script src="cardsprint.js"></script>
 </body>

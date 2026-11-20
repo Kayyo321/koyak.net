@@ -25,12 +25,13 @@
     const vec3 NIGHT = vec3(0.027, 0.035, 0.212);
     const vec3 INK   = vec3(0.231, 0.259, 0.839);
     const vec3 PAPER = vec3(0.925, 0.933, 1.0);
-    const vec3 RIBBON = vec3(0.055, 0.063, 0.29);
     // koyak.net's turn: the machine prints in dark pink, and its own words come out in purple
     const vec3 INK_AI = vec3(0.55, 0.13, 0.47);
     const vec3 PAPER_AI = vec3(1.0, 0.86, 0.95);
-    const vec3 PURPLE = vec3(0.36, 0.09, 0.55);
-    const vec3 PURPLE_FRINGE = vec3(0.6, 0.3, 0.86);
+    // the two hands sit far apart in hue: the visitor in navy-ultramarine, koyak.net in magenta-violet
+    const vec3 NAVY = vec3(0.05, 0.08, 0.42);
+    const vec3 PURPLE = vec3(0.43, 0.05, 0.5);
+    const vec3 PURPLE_FRINGE = vec3(0.72, 0.28, 0.8);
     const float LEVELS = 7.0;
 
     float hash(vec2 p) {
@@ -100,18 +101,18 @@
                      inkAt(uv + o * vec2(0.7, 0.7)) + inkAt(uv - o * vec2(0.7, 0.7))) / 6.0;
       vec2 fp = rot(0.35) * px / uInkPx;
       float fibre = 0.74 + 0.26 * vnoise(fp * vec2(0.35, 2.6)) * (0.6 + 0.4 * vnoise(fp * 0.9 + 17.0));
-      float ink = clamp(m * fibre * 0.86 + bleed * 0.3 * dev, 0.0, 1.0) * dev;
+      float ink = clamp(m * fibre * 0.96 + bleed * 0.3 * dev, 0.0, 1.0) * dev;
       // which hand struck it: blue for the visitor, purple for koyak.net (the mask's blue channel)
       float aiB = aiAt(uv) + (aiAt(uv + o * vec2(1.0, 0.0)) + aiAt(uv - o * vec2(1.0, 0.0)) +
                               aiAt(uv + o * vec2(0.0, 1.0)) + aiAt(uv - o * vec2(0.0, 1.0))) * 0.25;
       float ai = clamp(aiB / max(m + bleed, 0.02), 0.0, 1.0);
       float b = (bayer4(px / uDither) + 0.5 / 16.0);
       float dith = step(b, ink);
-      vec3 inkc = mix(INK * 0.8, RIBBON, smoothstep(0.25, 0.85, m * fibre));
-      vec3 aic = mix(PURPLE_FRINGE, PURPLE, smoothstep(0.25, 0.85, m * fibre));
+      vec3 inkc = mix(INK * 0.85, NAVY, smoothstep(0.25, 0.8, m * fibre));
+      vec3 aic = mix(PURPLE_FRINGE, PURPLE, smoothstep(0.25, 0.8, m * fibre));
       inkc = mix(inkc, aic, ai);
       // a second, offset threshold picks the lighter ribbon tone, so the dither has two inks in it
-      inkc = mix(inkc, mix(INK, PURPLE_FRINGE, ai), step(ink, bayer4(px / uDither + 2.0)) * 0.55);
+      inkc = mix(inkc, mix(INK, PURPLE_FRINGE, ai), step(ink, bayer4(px / uDither + 2.0)) * 0.4);
       col = mix(col, inkc, dith);
       alpha = max(alpha, dith);
       gl_FragColor = vec4(col, alpha);
@@ -236,6 +237,8 @@
     ctx.save();
     ctx.translate(x + g.dx, y + g.dy); ctx.rotate(g.rot); ctx.scale(g.sc, g.sc);
     ctx.globalAlpha = g.a * 0.8; ctx.fillText(g.ch, 0, 0);
+    // a hair of extra weight, so the dithered strokes stay readable at small sizes
+    ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = fontPx() * 0.05; ctx.lineJoin = "round"; ctx.strokeText(g.ch, 0, 0);
     const f = fontPx();
     ctx.beginPath();
     if (g.side === 0) ctx.rect(-f, -f, f, 2 * f); else if (g.side === 1) ctx.rect(0, -f, f, 2 * f);
@@ -501,7 +504,12 @@
     const lines = draft.lines.map((l) => Array.from(l, (c) => c || " ").join("").trim());
     return lines.reduce((acc, l) => (l ? acc + (acc && !acc.endsWith("\n") ? " " : "") + l : acc && !acc.endsWith("\n\n") ? acc + "\n\n" : acc), "").trim();
   }
-  function draftChanged() { if (sendBtn) sendBtn.disabled = turn !== "you" || !draftText(); }
+  function draftChanged() {
+    if (!sendBtn) return;
+    const empty = !draftText();
+    sendBtn.disabled = turn !== "you" || empty;
+    sendBtn.classList.toggle("is-empty", turn === "you" && empty); // the plane waits at half strength
+  }
 
   // a carriage return made by the hands at the keys: a beat at the margin, the lever, a beat to find the keys again
   async function carriage() {
@@ -572,6 +580,7 @@
     turn = t;
     canvas.dataset.turn = t;
     setMood(t === "you" ? 0 : 1);
+    window.dispatchEvent(new CustomEvent("koyak:turn", { detail: { turn: t } })); // plane.js throws / rebuilds the airplane
     if (t !== "you") { anims.keys = []; canvas.style.cursor = "wait"; } else canvas.style.cursor = "";
     draftChanged();
   }

@@ -1,7 +1,8 @@
 /* Night Press, ported from lab/night-press.html to WebGL.
    Halftones the mascot plate live: rotated AM screen, posterized tone, seeded
-   misregistration, offset crops re-pressed at another pitch, and a loupe that
-   prints a finer screen under the cursor. One develop moment on load. */
+   misregistration, offset crops re-pressed at another pitch, and a loupe under the cursor: a spinning
+   shape (circle, triangle, square, star, heart, circle...) that lifts the screen off whatever is under it.
+   One develop moment on load. */
 (() => {
   const canvas = document.getElementById("plate-canvas");
   const fallback = document.querySelector(".plate-fallback");
@@ -68,6 +69,48 @@
       return vec2(best, bt);
     }
 
+    /* ---------- the loupe's shapes (signed distances, after Inigo Quilez) ---------- */
+    float dot2(vec2 v) { return dot(v, v); }
+    float sdTri(vec2 p, float r) {
+      const float k = 1.7320508;
+      p.x = abs(p.x) - r; p.y = p.y + r / k;
+      if (p.x + k * p.y > 0.0) p = vec2(p.x - k * p.y, -k * p.x - p.y) / 2.0;
+      p.x -= clamp(p.x, -2.0 * r, 0.0);
+      return -length(p) * sign(p.y);
+    }
+    float sdBox(vec2 p, float b) { vec2 d = abs(p) - b; return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0); }
+    float sdStar(vec2 p, float r, float rf) {
+      const vec2 k1 = vec2(0.809016994375, -0.587785252292);
+      const vec2 k2 = vec2(-0.809016994375, -0.587785252292);
+      p.x = abs(p.x);
+      p -= 2.0 * max(dot(k1, p), 0.0) * k1;
+      p -= 2.0 * max(dot(k2, p), 0.0) * k2;
+      p.x = abs(p.x);
+      p.y -= r;
+      vec2 ba = rf * vec2(-k1.y, k1.x) - vec2(0.0, 1.0);
+      float h = clamp(dot(p, ba) / dot(ba, ba), 0.0, r);
+      return length(p - ba * h) * sign(p.y * ba.x - p.x * ba.y);
+    }
+    float sdHeart(vec2 p) {
+      p.x = abs(p.x);
+      if (p.y + p.x > 1.0) return sqrt(dot2(p - vec2(0.25, 0.75))) - sqrt(2.0) / 4.0;
+      return sqrt(min(dot2(p - vec2(0.0, 1.0)), dot2(p - 0.5 * max(p.x + p.y, 0.0)))) * sign(p.x - p.y);
+    }
+    // 0 circle, 1 triangle, 2 square, 3 star, 4 heart; R is the circle's radius, the rest are sized to match it
+    float shape(int i, vec2 p, float R) {
+      if (i == 0) return length(p) - R;
+      if (i == 1) return sdTri(p, R * 1.05);
+      if (i == 2) return sdBox(p, R * 0.84);
+      if (i == 3) return sdStar(p, R * 1.18, 0.45);
+      float s = R * 1.6;
+      return sdHeart(p / s + vec2(0.0, 0.52)) * s;
+    }
+    vec3 rawTone(vec2 uv) { // the plate with no screen at all, in the press's three inks
+      float l = mix(texture2D(uSubject, uv).r, texture2D(uSubjectB, uv).r, uMix) * uDim;
+      l = pow(l, 1.15);
+      return l < 0.5 ? mix(NIGHT, INK, l * 2.0) : mix(INK, PAPER, l * 2.0 - 1.0);
+    }
+
     void main() {
       vec2 px = gl_FragCoord.xy;
       vec2 uv = px / uRes;
@@ -76,7 +119,7 @@
       float ang = radians(22.0);
 
       vec2 s = screen(px, pitch, ang, vec2(0.0), 0.0);
-      float frame = 0.0, ringA = 0.0;
+      float frame = 0.0;
 
       // offset crops: re-pressed proofs that were never quite aligned
       for (int k = 0; k < 6; k++) {
@@ -90,21 +133,34 @@
         }
       }
 
-      // loupe: a finer screen at another angle under the cursor
-      if (uLens > 0.0) {
-        float d = distance(uv, uMouse);
-        float m = (1.0 - smoothstep(0.075, 0.095, d)) * uLens;
-        if (m > 0.0) {
-          vec2 f = screen(px, pitch * 0.42, ang + radians(23.0), vec2(0.0), 31.0);
-          f.y = min(1.0, f.y * 1.12); // a loupe gathers light
-          s = mix(s, f, m);
-        }
-        ringA = (1.0 - smoothstep(0.0, 1.2 * uRes.x / 600.0, abs(d - 0.097) * uRes.x)) * uLens;
-      }
-
       vec3 dotc = mix(INK, PAPER, smoothstep(0.4, 0.95, s.y));
       vec3 col = mix(NIGHT, dotc, s.x);
-      col = mix(col, PAPER, max(frame * 0.22, ringA * 0.7));
+      col = mix(col, PAPER, frame * 0.22);
+
+      // loupe: a spinning shape that morphs circle > triangle > square > star > heart > circle and lifts the
+      // screen off what is under it. Arriving, it whirls in from a point with an overshoot, its edge draws
+      // itself round like a clock hand, and the inside un-prints cell by cell; leaving, all of it runs backwards.
+      if (uLens > 0.0) {
+        float e = clamp(uLens, 0.0, 1.0), b = e - 1.0;
+        float pop = max(1.0 + 2.70158 * b * b * b + 1.70158 * b * b, 0.0);
+        float R = max(0.088 * pop, 1e-4);
+        float spin = uTime * 0.9 * uMotion + (1.0 - e) * 5.0;
+        vec2 p = rot(spin) * (uv - uMouse);
+        float seg = uTime / 1.7 * uMotion;
+        int i0 = int(mod(floor(seg), 5.0)), i1 = int(mod(floor(seg) + 1.0, 5.0));
+        float d = mix(shape(i0, p, R), shape(i1, p, R), smoothstep(0.55, 1.0, fract(seg)));
+        float aa = 1.2 / uRes.x;
+        float inside = 1.0 - smoothstep(-aa, aa, d);
+        vec2 cq = floor(rot(ang) * (px - uRes * 0.5) / pitch);
+        float reveal = step(hash(cq + 77.0), smoothstep(0.1, 0.9, e));
+        col = mix(col, rawTone(uv), inside * reveal);
+        // the edge, printed as a ring of fine paper dots
+        float band = 1.0 - smoothstep(0.0045 - aa, 0.0045 + aa, abs(d));
+        vec2 g = fract(px / (pitch * 0.55)) - 0.5;
+        float dotm = 1.0 - smoothstep(0.26, 0.38, length(g));
+        float wipe = step(atan(p.y, p.x) / 6.2831853 + 0.5, smoothstep(0.0, 0.75, e));
+        col = mix(col, PAPER, band * dotm * wipe * 0.92);
+      }
 
       // hairline technical layer, a breath of parallax against the subject
       vec2 par = (uMouse - 0.5) * 0.006 * uLens;
@@ -211,11 +267,14 @@
     raf = 0;
     const animatingIn = state.develop < 1;
     if (animatingIn) state.develop = Math.min(1, (now - state.t0) / 1600);
-    state.lens += (state.lensTarget - state.lens) * (reduce.matches ? 1 : 0.18);
-    if (Math.abs(state.lens - state.lensTarget) < 0.01) state.lens = state.lensTarget;
+    // the loupe arrives in ~0.55 s and leaves in ~0.42 s (the shader shapes both from this one number)
+    const dt = Math.min(64, now - (state.last || now)); state.last = now;
+    if (reduce.matches) state.lens = state.lensTarget;
+    else if (state.lens < state.lensTarget) state.lens = Math.min(state.lensTarget, state.lens + dt / 550);
+    else if (state.lens > state.lensTarget) state.lens = Math.max(state.lensTarget, state.lens - dt / 420);
     draw(now);
     const drifting = !reduce.matches && state.visible;
-    const busy = animatingIn || state.lens !== state.lensTarget || face.tweening;
+    const busy = animatingIn || state.lens !== state.lensTarget || (state.lens > 0 && !reduce.matches) || face.tweening;
     if (busy) raf = requestAnimationFrame(frame);
     else if (drifting) { // the slow drift only needs ~20 fps
       clearTimeout(last); last = setTimeout(() => { if (!raf) raf = requestAnimationFrame(frame); }, 50);
