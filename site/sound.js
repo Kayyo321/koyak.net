@@ -1,6 +1,6 @@
 /* The room's sound, all synthesized (no samples to load): the typewriter's strike, its space bar and carriage
-   return (bell near the margin, the carriage ratcheting home, the stop), and koyak.net's voice while it
-   types, a little babble of vowel blips, one per letter, pitched by the letter.
+   return (the lever, the carriage dragged home over its ratchet, the stop), and koyak.net's voice while it
+   types: one flowing line of vowel babble, its sound and note changing with each letter, silent in her pauses.
    The pixel speaker by the typewriter mutes it all; the choice is remembered in this browser only.
    Browsers keep audio locked until the visitor's first press or key, so nothing can sound before that. */
 (() => {
@@ -16,7 +16,7 @@
     try { ctx = new AC(); } catch (_) { return null; }
     master = ctx.createGain();
     master.gain.value = muted ? 0 : 0.8;
-    const comp = ctx.createDynamicsCompressor(); // keeps a burst of keys and a bell from clipping together
+    const comp = ctx.createDynamicsCompressor(); // keeps a burst of keys and the carriage from clipping together
     comp.threshold.value = -16; comp.knee.value = 8; comp.ratio.value = 4; comp.attack.value = 0.002; comp.release.value = 0.15;
     master.connect(comp).connect(ctx.destination);
     noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
@@ -49,7 +49,7 @@
     const off = Math.random() * 0.8;
     src.start(t, off, attack + decay + 0.02);
   }
-  // a pitched body: the thunk of the typebar on the platen, the bell
+  // a pitched body: the thunk of the typebar on the platen, the margin stop
   function tone(t, { type = "sine", freq = 200, to = null, gain = 0.3, attack = 0.002, decay = 0.05 }) {
     const o = ctx.createOscillator();
     o.type = type; o.frequency.setValueAtTime(freq, t);
@@ -84,40 +84,61 @@
     tone(t, { freq: 150, to: 80, gain: 0.3, decay: 0.05 });
     hiss(t, { freq: 700, q: 1, gain: 0.15, decay: 0.03 });
   }
-  // the carriage return: the bell if the line ran close to the margin, the lever feeding the paper up a line,
-  // the carriage sliding home over its ratchet (one tooth per column it travels) and hitting the stop
+  // a stretch of noise whose loudness follows a curve (the carriage's speed as it is shoved home)
+  function bed(t, dur, curve, { type = "bandpass", freq = 900, to = null, q = 0.8, gain = 0.1 }) {
+    const src = ctx.createBufferSource();
+    src.buffer = noise; src.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = type; f.Q.value = q; f.frequency.setValueAtTime(freq, t);
+    if (to) f.frequency.exponentialRampToValueAtTime(to, t + dur);
+    const g = ctx.createGain();
+    g.gain.value = 0; // (a curve may not share its start time with any other event)
+    g.gain.setValueCurveAtTime(curve.map((v) => v * gain), t, dur);
+    src.connect(f).connect(g).connect(master);
+    src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.02);
+  }
+  // the carriage return of an old machine, thrown by hand: the lever clacks and ratchets the paper up a line,
+  // then the whole carriage is dragged back along its rails, its pawl rasping over the rack's teeth, faster in
+  // the middle of the shove, until it slams into the margin stop and rocks back a hair
   function carriage({ col = 24, cols = 24 } = {}) {
     if (!live()) return;
     const t = ctx.currentTime, travel = Math.min(1, col / cols);
-    if (col >= cols * 0.6) {
-      const f = rand(2290, 2380);
-      tone(t, { freq: f, gain: 0.16, attack: 0.002, decay: 1.5 });
-      tone(t, { freq: f * 2.76, gain: 0.05, attack: 0.002, decay: 0.6 });
-      tone(t, { freq: f * 5.4, gain: 0.02, attack: 0.001, decay: 0.25 });
+    // the lever: line-space pawl, the platen turning a notch
+    hiss(t, { freq: 1500, q: 1, gain: 0.3, decay: 0.03 });
+    tone(t, { freq: 160, to: 90, gain: 0.28, decay: 0.05 });
+    hiss(t + 0.04, { freq: 3400, q: 2.5, gain: 0.13, decay: 0.012 });
+    hiss(t + 0.075, { freq: 2200, q: 2, gain: 0.08, decay: 0.01 });
+    if (travel <= 0) return; // already at the margin: only the paper moves
+    const start = t + 0.09, dur = 0.2 + 0.45 * travel, N = 64;
+    // speed through the shove: picks up quickly, peaks past the middle, slows just before the stop
+    const speed = Float32Array.from({ length: N }, (_, i) => Math.pow(Math.sin(Math.PI * Math.pow(i / (N - 1), 0.75)), 0.6));
+    bed(start, dur, speed, { freq: 650, to: 1150, q: 0.9, gain: 0.11 });               // the drag: metal on metal
+    bed(start, dur, speed, { type: "lowpass", freq: 220, q: 0.7, gain: 0.22 });          // the carriage rolling on its rails
+    bed(start, dur, speed, { freq: 2600, to: 3400, q: 4, gain: 0.05 });                 // the rasp riding over it
+    // the pawl over the rack: one tooth per column, the clicks crowding together where the carriage is fastest
+    const teeth = Math.max(6, Math.round(col * 1.6));
+    let acc = 0; const cum = [0];
+    for (let i = 1; i < N; i++) cum.push(acc += speed[i] + 0.05);
+    for (let n = 0; n < teeth; n++) {
+      const target = (n / teeth) * acc;
+      const i = cum.findIndex((c) => c >= target);
+      const at = start + dur * Math.max(0, i) / (N - 1) + rand(-0.003, 0.003);
+      hiss(at, { freq: rand(2400, 3900), q: 2.6, gain: rand(0.05, 0.1), decay: 0.006 });
     }
-    const t1 = t + 0.06;
-    hiss(t1, { freq: 1500, q: 1, gain: 0.32, decay: 0.03 });
-    tone(t1, { freq: 160, to: 90, gain: 0.3, decay: 0.05 });
-    hiss(t1 + 0.035, { freq: 3800, q: 2.5, gain: 0.14, decay: 0.01 });
-    if (travel <= 0) return;
-    const dur = 0.1 + 0.3 * travel, start = t1 + 0.07;
-    hiss(start, { freq: 700, q: 0.7, gain: 0.06, attack: 0.03, decay: dur, to: 1700 }); // the slide
-    const teeth = Math.max(3, Math.round(col));
-    for (let i = 0; i < teeth; i++) {
-      const k = i / teeth;
-      const at = start + dur * (1 - Math.pow(1 - k, 1.6)); // quick at first, easing into the stop
-      hiss(at, { freq: rand(3000, 4300), q: 2.2, gain: rand(0.07, 0.12), decay: 0.006 });
-    }
+    // the margin stop, and the carriage rocking back off it
     const end = start + dur;
-    tone(end, { freq: 115, to: 55, gain: 0.5, decay: 0.1 });
-    hiss(end, { freq: 1000, q: 0.8, gain: 0.38, decay: 0.05 });
-    hiss(end + 0.01, { type: "highpass", freq: 4500, gain: 0.12, decay: 0.02 });
+    tone(end, { freq: 120, to: 55, gain: 0.55, decay: 0.12 });
+    hiss(end, { freq: 1000, q: 0.8, gain: 0.4, decay: 0.05 });
+    hiss(end + 0.008, { type: "highpass", freq: 4500, gain: 0.12, decay: 0.02 });
+    hiss(end + 0.07, { freq: 1400, q: 1.5, gain: 0.08, decay: 0.02 });
   }
 
   /* ---------- koyak.net's voice ---------- */
-  // she only makes a sound while her lips are apart: plate.js calls voice() each time her mouth opens, for as long
-  // as it stays open. The typewriter only tells her which letter she is on (say()), which sets the syllable:
-  // each letter is babbled as the vowel of its name, with a puff of air for the consonants that have one
+  // one unbroken line of babble for as long as she keeps typing. plate.js starts it when her mouth starts moving
+  // (voiceStart), shapes it every time the mouth frame changes (voiceShape: louder wide open, softer half open,
+  // a hum when the lips meet for a moment) and lets it fall silent only when she stops typing (voiceStop).
+  // The typewriter tells her which letter she is on (say()): the vowel of the letter's name and its note glide in
+  // without a break, and consonants with a puff of air or a stop add one, with a dip, as a syllable.
   const VOWELS = { // formants F1, F2 (Hz), for a light voice
     a: [850, 1610], e: [600, 2000], i: [320, 2750], o: [520, 920], u: [360, 880], y: [480, 2350], r: [740, 1250],
   };
@@ -125,50 +146,83 @@
     a: "y", b: "i", c: "i", d: "i", e: "i", f: "e", g: "i", h: "y", i: "a", j: "y", k: "y", l: "e", m: "e",
     n: "e", o: "o", p: "i", q: "u", r: "r", s: "e", t: "i", u: "u", v: "i", w: "u", x: "e", y: "a", z: "i",
   };
-  const PLOSIVE = /[bcdgkpqt]/, FRICATIVE = /[fhjsxz]/;
+  const PLOSIVE = /[bcdgkpqt]/, FRICATIVE = /[fhjsxz]/, NASAL = /[mnlrwvy]/;
+  const BASE = 290; // Hz
   let phrase = 0; // drifts across a reply so the voice wanders a little, like intonation
-  const now = { ch: "a", question: false, fresh: false };
+  const now = { ch: "a", question: false };
+  let vox = null; // the live voice: { src, lfo, f1, f2, artic, out }
+
+  const pitchFor = (c, question) => {
+    const step = ((c.charCodeAt(0) * 7) % 9) - 4; // the letter sets the note, so a word always sounds like itself
+    phrase = phrase * 0.85 + rand(-1, 1) * 0.6;
+    return BASE * Math.pow(2, (step * 0.5 + phrase + (question ? 3 : 0)) / 12);
+  };
+  function glide(c, question, tc = 0.03) {
+    if (!vox) return;
+    const t = ctx.currentTime, [a, b] = SAYS[c] ? VOWELS[SAYS[c]] : VOWELS.i;
+    vox.src.frequency.setTargetAtTime(pitchFor(c, question), t, tc * 1.4);
+    vox.f1.frequency.setTargetAtTime(a, t, tc);
+    vox.f2.frequency.setTargetAtTime(b, t, tc);
+  }
+
+  function voiceStart() {
+    if (!live() || vox) return;
+    const t = ctx.currentTime;
+    const src = ctx.createOscillator(); src.type = "sawtooth";
+    src.frequency.setValueAtTime(pitchFor(now.ch, now.question), t);
+    const lfo = ctx.createOscillator(), depth = ctx.createGain(); // a little vibrato keeps it a voice, not a tone
+    lfo.frequency.value = rand(5, 6); depth.gain.value = BASE * 0.012;
+    lfo.connect(depth).connect(src.frequency);
+    const body = ctx.createBiquadFilter(); body.type = "lowpass"; body.frequency.value = 3600; body.Q.value = 0.5;
+    const artic = ctx.createGain(); artic.gain.value = 1;   // dips for consonants
+    const out = ctx.createGain(); out.gain.setValueAtTime(0, t); // follows the mouth
+    src.connect(body);
+    const [a, b] = SAYS[now.ch] ? VOWELS[SAYS[now.ch]] : VOWELS.i;
+    const f1 = ctx.createBiquadFilter(); f1.type = "bandpass"; f1.frequency.value = a; f1.Q.value = 6;
+    const f2 = ctx.createBiquadFilter(); f2.type = "bandpass"; f2.frequency.value = b; f2.Q.value = 6;
+    const l1 = ctx.createGain(); l1.gain.value = 1.7; const l2 = ctx.createGain(); l2.gain.value = 1.1;
+    const dry = ctx.createGain(); dry.gain.value = 0.18;
+    body.connect(f1).connect(l1).connect(artic);
+    body.connect(f2).connect(l2).connect(artic);
+    body.connect(dry).connect(artic);
+    artic.connect(out).connect(master);
+    src.start(t); lfo.start(t);
+    vox = { src, lfo, f1, f2, artic, out };
+  }
+  // the mouth frame plate.js has just put up: "wide", "half" or "shut" (lips touching for a beat: a soft hum)
+  function voiceShape(open = "wide") {
+    if (!vox) voiceStart();
+    if (!vox) return;
+    const level = open === "wide" ? 0.27 : open === "half" ? 0.19 : 0.05;
+    vox.out.gain.setTargetAtTime(level, ctx.currentTime, 0.018);
+  }
+  function voiceStop() {
+    if (!vox) return;
+    const v = vox, t = ctx.currentTime;
+    vox = null;
+    v.out.gain.cancelScheduledValues(t);
+    v.out.gain.setTargetAtTime(0, t, 0.03);
+    v.src.frequency.setTargetAtTime(v.src.frequency.value * 0.92, t, 0.05); // a small fall into the pause
+    v.src.stop(t + 0.25); v.lfo.stop(t + 0.25);
+  }
   // the letter her hands are on (spaces and punctuation keep the last sound)
   function say(ch, { question = false } = {}) {
     const c = String(ch).toLowerCase();
-    if (SAYS[c] || /[0-9]/.test(c)) { now.ch = c; now.fresh = true; }
     now.question = question;
-  }
-
-  // one syllable, as long as the mouth frame that carries it; wide open is a little louder than half open
-  function voice({ ms = 70, wide = true } = {}) {
-    if (!live()) return;
-    const c = now.ch, question = now.question, fresh = now.fresh;
-    now.fresh = false;
-    const formant = SAYS[c] ? VOWELS[SAYS[c]] : VOWELS.i;
+    if (!(SAYS[c] || /[0-9]/.test(c))) return;
+    now.ch = c;
+    if (!vox || !live()) return;
     const t = ctx.currentTime;
-    // the letter sets the note (so a word always sounds like itself), the moment adds the rest
-    const step = ((c.charCodeAt(0) * 7) % 9) - 4;
-    phrase = phrase * 0.85 + rand(-1, 1) * 0.6;
-    const semis = step * 0.55 + phrase + (question ? 3 : 0) + rand(-0.4, 0.4);
-    const f0 = 300 * Math.pow(2, semis / 12);
-    const dur = Math.min(0.16, Math.max(0.045, ms / 1000 - 0.012));
-
-    const out = env(t, wide ? 0.28 : 0.19, 0.008, dur);
-    const src = ctx.createOscillator();
-    src.type = "sawtooth";
-    src.frequency.setValueAtTime(f0 * 1.04, t);
-    src.frequency.exponentialRampToValueAtTime(f0 * 0.94, t + dur); // a small fall on every syllable
-    const body = ctx.createBiquadFilter(); // soften the buzz
-    body.type = "lowpass"; body.frequency.value = 3600; body.Q.value = 0.5;
-    src.connect(body);
-    for (const [i, f] of formant.entries()) {
-      const bp = ctx.createBiquadFilter();
-      bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = 6;
-      const lvl = ctx.createGain(); lvl.gain.value = i === 0 ? 1.7 : 1.1;
-      body.connect(bp).connect(lvl).connect(out);
+    glide(c, question);
+    // consonants articulate: a stop closes the sound for an instant, a fricative breathes over it
+    if (PLOSIVE.test(c) || FRICATIVE.test(c) || NASAL.test(c)) {
+      const dip = PLOSIVE.test(c) ? 0.12 : NASAL.test(c) ? 0.5 : 0.3;
+      vox.artic.gain.cancelScheduledValues(t);
+      vox.artic.gain.setTargetAtTime(dip, t, 0.006);
+      vox.artic.gain.setTargetAtTime(1, t + 0.025, 0.02);
     }
-    const dry = ctx.createGain(); dry.gain.value = 0.18;
-    body.connect(dry).connect(out);
-    src.start(t); src.stop(t + dur + 0.05);
-    if (!fresh) return; // a held vowel: no second consonant
-    if (PLOSIVE.test(c)) hiss(t, { freq: 2500, q: 0.8, gain: 0.12, decay: 0.012 });
-    else if (FRICATIVE.test(c)) hiss(t, { type: "highpass", freq: c === "h" ? 1800 : 4800, q: 0.7, gain: 0.07, attack: 0.004, decay: 0.03 });
+    if (PLOSIVE.test(c)) hiss(t + 0.02, { freq: 2500, q: 0.8, gain: 0.1, decay: 0.012 });
+    else if (FRICATIVE.test(c)) hiss(t, { type: "highpass", freq: c === "h" ? 1800 : 4800, q: 0.7, gain: 0.06, attack: 0.004, decay: 0.035 });
   }
 
   /* ---------- mute ---------- */
@@ -196,5 +250,5 @@
     show();
   }
 
-  window.koyakSound = { key, space, jam, carriage, say, voice, setMuted, get muted() { return muted; }, get ready() { return !!ctx; } };
+  window.koyakSound = { key, space, jam, carriage, say, voiceStart, voiceShape, voiceStop, setMuted, get muted() { return muted; }, get ready() { return !!ctx; } };
 })();

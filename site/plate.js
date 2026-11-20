@@ -391,7 +391,10 @@
 
   /* ---------- talking: while koyak.net types, her lips move (typewriter.js sends koyak:talk) ---------- */
   // closed -> half -> open -> half -> closed, with skips and uneven holds, so it reads as speech and not a loop
-  const MOUTH = { open: ["talk-half", "talk-open"], "talk-half": ["open", "talk-open", "talk-open"], "talk-open": ["talk-half", "talk-half", "open"] };
+  // while she types the lips keep moving; they only meet for a beat now and then (her voice hums through it),
+  // and they close properly only when the typing pauses (typewriter.js sends koyak:talk false then)
+  const MOUTH = { open: ["talk-half", "talk-open"], "talk-half": ["talk-open", "talk-open", "open"], "talk-open": ["talk-half", "talk-half", "open"] };
+  const SHAPE = { open: "shut", "talk-half": "half", "talk-open": "wide" };
   async function talkLoop(gen) {
     let cur = "open";
     while (face.talking && gen === face.gen) {
@@ -399,9 +402,9 @@
         const opts = MOUTH[cur]; cur = opts[Math.floor(Math.random() * opts.length)];
         face.dim = 1; cut(cur);
       }
-      const hold = cur === "open" ? 70 + Math.random() * 140 : 60 + Math.random() * 90;
-      // her voice (sound.js) sounds only while her lips are apart, for exactly as long as this frame is up
-      if (cur !== "open" && !document.hidden && window.koyakSound) window.koyakSound.voice({ ms: hold, wide: cur === "talk-open" });
+      const hold = cur === "open" ? 45 + Math.random() * 40 : 60 + Math.random() * 90;
+      // her voice (sound.js) follows the frame: full wide open, softer half open, a hum while the lips touch
+      if (!document.hidden && window.koyakSound) window.koyakSound.voiceShape(SHAPE[cur]);
       await wait(hold);
     }
   }
@@ -416,6 +419,7 @@
     if (!face.talking) return;
     face.talking = false; face.gen++;
     face.dim = 1; cut("open"); setMode("awake");
+    if (window.koyakSound) window.koyakSound.voiceStop(); // lips closed: silence
     activity();
   }
   window.addEventListener("koyak:talk", (e) => (e.detail && e.detail.talking ? startTalk() : stopTalk()));

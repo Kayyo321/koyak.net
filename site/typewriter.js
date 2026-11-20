@@ -563,6 +563,7 @@
     return d;
   }
 
+  const BREAK = 330; // ms without a keystroke that counts as a pause in her speech
   const talk = (talking) => window.dispatchEvent(new CustomEvent("koyak:talk", { detail: { talking } }));
   async function typeOut(text) {
     const lines = layout(text);
@@ -575,7 +576,9 @@
     for (let i = 0; i < lines.length; i++) {
       if (i > 0) { talk(false); await carriage(); talk(true); prev = ""; pos++; }
       for (const ch of lines[i]) {
-        await wait(keyDelay(prev, ch));
+        const d = keyDelay(prev, ch);
+        // a real pause in the typing (a sentence ending, a hesitation): she stops talking until her hands move again
+        if (d >= BREAK) { talk(false); await wait(d); talk(true); } else await wait(d);
         sound()?.say(ch, { question: asking(pos) }); // the syllable her mouth makes next (plate.js voices it)
         if (ch === " ") space(); else type(ch, true);
         prev = ch; pos++;

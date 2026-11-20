@@ -279,8 +279,9 @@ with sync_playwright() as p:
       const pl = r('#plate'), m = r('.mark'), w = r('#writer');
       return { girl: pl.x + pl.width * 0.15, mid: (Math.min(m.x, w.x) + Math.max(m.right, w.right)) / 2 }; }""")
     check("layout: title and typewriter centred left of her figure", abs(geo["mid"] - geo["girl"] / 2) <= 3, f"centre {geo['mid']:.0f}, room ends {geo['girl']:.0f}")
-    page.evaluate("""() => { window.__voice = []; const S = window.koyakSound, v = S.voice;
-      S.voice = (o) => { __voice.push(document.getElementById('plate-canvas').dataset.face); return v(o); }; }""")
+    page.evaluate("""() => { window.__voice = []; window.__stops = 0; const S = window.koyakSound, v = S.voiceShape, st = S.voiceStop;
+      S.voiceShape = (o) => { __voice.push(document.getElementById('plate-canvas').dataset.face); return v(o); };
+      S.voiceStop = () => { __stops++; return st(); }; }""")
     page.keyboard.type("hello there"); page.keyboard.press("Enter"); page.keyboard.type("who are you")
     check("talk: what was typed since the last send is the message", page.evaluate("__typewriter.draftText()") == "hello there who are you", page.evaluate("__typewriter.draftText()"))
     check("plane: full strength once there is a message", "is-empty" not in send.get_attribute("class"))
@@ -299,7 +300,8 @@ with sync_playwright() as p:
     check("talk: koyak.net's words are its own ink", page.evaluate("__typewriter.page.glyphs.some(g => g.ai)"))
     check("talk: lips stop when the typing does", page.evaluate("document.getElementById('plate-canvas').dataset.face") in ("awake", "blinking"))
     voice = page.evaluate("__voice")
-    check("voice: she babbles only while her lips move", len(voice) > 5 and set(voice) == {"talking"}, f"{len(voice)} syllables, faces {sorted(set(voice))}")
+    check("voice: she babbles only while her lips move", len(voice) > 5 and set(voice) == {"talking"}, f"{len(voice)} mouth shapes, faces {sorted(set(voice))}")
+    check("voice: she falls silent in the pauses, not between every letter", 2 <= page.evaluate("__stops") < len(voice) / 3, f"{page.evaluate('__stops')} pauses over {len(voice)} mouth shapes")
     page.wait_for_selector("#writer-send .plane[data-dissolve='0.00']", timeout=8000)
     check("plane: reassembles where it started", plane.evaluate("c => c.style.transform") in ("", "translate(0px, 0px) rotate(0deg) scale(1)"))
     check("talk: the reply joins the conversation", page.evaluate("__typewriter.history.map(m => m.role).join()") == "user,assistant")
