@@ -291,6 +291,7 @@
   }
 
   async function sleep() {
+    if (face.talking) return;
     if (face.mode === "asleep" || face.mode === "falling" || !face.tex.sleep) return;
     while (face.busy) await wait(20);
     const gen = face.gen;
@@ -303,6 +304,7 @@
   }
   // the page went away: she is simply asleep when you come back, no animation saved up for your return
   function asleepNow() {
+    if (face.talking) return; // she keeps talking while the tab is away; the typewriter is still going
     if (!face.tex.sleep || face.mode === "asleep") return;
     face.gen++; face.busy = false; face.tweening = false;
     face.dim = 0.8; cut("sleep"); setMode("asleep");
@@ -319,8 +321,37 @@
     setTimeout(() => blink(), 450); // a waking blink
   }
 
+  /* ---------- talking: while koyak.net types, her lips move (typewriter.js sends koyak:talk) ---------- */
+  // closed -> half -> open -> half -> closed, with skips and uneven holds, so it reads as speech and not a loop
+  const MOUTH = { open: ["talk-half", "talk-open"], "talk-half": ["open", "talk-open", "talk-open"], "talk-open": ["talk-half", "talk-half", "open"] };
+  async function talkLoop(gen) {
+    let cur = "open";
+    while (face.talking && gen === face.gen) {
+      if (!document.hidden) {
+        const opts = MOUTH[cur]; cur = opts[Math.floor(Math.random() * opts.length)];
+        face.dim = 1; cut(cur);
+      }
+      await wait(cur === "open" ? 70 + Math.random() * 140 : 60 + Math.random() * 90);
+    }
+  }
+  function startTalk() {
+    if (!face.tex["talk-open"] || reduce.matches || face.talking) return;
+    clearTimeout(idleTimer);
+    face.gen++; face.busy = false; face.tweening = false; face.talking = true; // whatever she was doing, she wakes to talk
+    setMode("talking");
+    talkLoop(face.gen);
+  }
+  function stopTalk() {
+    if (!face.talking) return;
+    face.talking = false; face.gen++;
+    face.dim = 1; cut("open"); setMode("awake");
+    activity();
+  }
+  window.addEventListener("koyak:talk", (e) => (e.detail && e.detail.talking ? startTalk() : stopTalk()));
+
   let idleTimer = 0;
   function activity() {
+    if (face.talking) return;
     if (face.mode === "falling" || face.mode === "asleep") wake();
     clearTimeout(idleTimer);
     idleTimer = setTimeout(sleep, IDLE_MS);

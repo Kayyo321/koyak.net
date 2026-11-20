@@ -1,8 +1,21 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "koyak-net",
+  "main": "worker/index.js",
   "compatibility_date": "2026-11-01",
   "assets": {
-    "directory": "./site"
-  }
+    "directory": "./site",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  // OPENAI_API_KEY is a secret: set it in the Cloudflare dashboard (or `npx wrangler secret put OPENAI_API_KEY`), never here
+  "vars": {
+    "MODEL": "gpt-6-luna",
+    "MAX_OUTPUT_TOKENS": "1200"
+  },
+  // per visitor IP: at most 8 replies a minute, so a stranger can't drain the credits
+  "ratelimits": [
+    { "name": "LIMITER", "namespace_id": "4317", "simple": { "limit": 8, "period": 60 } }
+  ],
+  "observability": { "enabled": true }
 }

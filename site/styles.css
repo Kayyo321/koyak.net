@@ -60,6 +60,45 @@ h1 { margin: 0; }
   margin-left: 0.15em;
 }
 
+/* ---------- icon cards: github, x, email (copies); a column of icon-sized boxes above ".net" ---------- */
+.title { position: relative; }
+.cards {
+  --ib: clamp(1.1rem, calc(var(--koyak) * 0.17), 2.1rem);
+  position: absolute;
+  display: flex; flex-direction: column; gap: calc(var(--ib) * 0.2);
+  right: calc(var(--koyak) * 0.4508 - var(--ib)); /* left edge lines up with the "." of ".net" */
+  top: calc(var(--koyak) * 0.0834);                  /* top box lines up with the top of the k's */
+}
+.card {
+  position: relative;
+  display: grid; place-items: center;
+  width: var(--ib); height: var(--ib);
+  margin: 0; padding: 0; font: inherit; text-decoration: none; cursor: pointer;
+  color: var(--lilac);
+  /* the border is only a ring of space for the printed edge (cardsprint.js); plain outline until that loads */
+  border: calc(var(--ib) * 0.14) solid rgb(174 178 242 / 0.5);
+  background-clip: border-box; /* the fill runs under the printed edge too */
+  background-color: rgb(174 178 242 / 0.06);
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .15s, color .15s, border-color .15s;
+}
+.card:hover, .card:focus-visible { background-color: var(--lilac); color: var(--night); }
+.card:focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
+.cards.is-printed .card { border-color: transparent; }
+.cards-print { position: absolute; z-index: 2; /* edge dots print over the fill */ pointer-events: none; }
+.ico { grid-area: 1 / 1; width: 54%; height: 54%; display: block; }
+/* only if the browser refuses the clipboard: the address appears beside the box so it can be copied by hand */
+.card.is-shown::after {
+  content: attr(data-email);
+  position: absolute; left: calc(100% + 0.7em); top: 50%; transform: translateY(-50%);
+  font-size: 0.72rem; letter-spacing: 0.08em; line-height: 1; white-space: nowrap; color: var(--lilac);
+}
+.ico-check { display: none; }
+.card.is-copied .ico-mail { display: none; }
+.card.is-copied .ico-check { display: block; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
 /* ---------- the typewriter ---------- */
 .writer {
   position: relative; margin: calc(var(--koyak) * 0.24) 0 0; /* clears the descender of the y */
@@ -71,6 +110,25 @@ h1 { margin: 0; }
   opacity: 0; border: 0; padding: 0; resize: none; font-size: 16px; /* 16px stops iOS zooming on focus */
   pointer-events: none;
 }
+
+/* the send button: an icon box like the cards, just off the machine's right shoulder */
+.send {
+  --ib: clamp(1.6rem, calc(var(--writer) * 0.085), 2.6rem);
+  position: absolute; left: calc(100% + var(--ib) * 0.25); top: 54%;
+  display: grid; place-items: center;
+  width: var(--ib); height: var(--ib); margin: 0; padding: 0;
+  font: inherit; color: var(--lilac); cursor: pointer;
+  border: calc(var(--ib) * 0.1) solid rgb(174 178 242 / 0.5);
+  background: rgb(174 178 242 / 0.06);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .15s, color .15s, border-color .4s, opacity .3s;
+}
+.send .ico { width: 52%; height: 52%; display: block; }
+.send:hover:not(:disabled), .send:focus-visible { background-color: var(--lilac); color: var(--night); }
+.send:focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
+.send:disabled { cursor: default; opacity: 0.4; }
+/* while koyak.net has the machine, the button takes its colour and waits */
+.writer:has(canvas[data-turn="ai"]) .send { color: #e7a3d8; border-color: rgb(196 64 160 / 0.7); opacity: 0.85; cursor: wait; }
 
 /* ---------- phones and portrait screens: title on top, girl fills the rest ---------- */
 @media (max-width: 760px), (orientation: portrait) {
@@ -86,4 +144,5 @@ h1 { margin: 0; }
   .plate { top: calc((var(--band-top) + var(--band-bottom)) / 2); right: auto; left: 50%; transform: translate(-44%, -50%); }
   .masthead { bottom: calc(var(--gutter) * 0.5); justify-content: space-between; }
   .writer { margin: 0; width: var(--tw); }
+  .send { --ib: clamp(1.6rem, calc(var(--tw) * 0.11), 2.4rem); }
 }

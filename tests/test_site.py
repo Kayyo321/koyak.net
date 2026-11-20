@@ -2,6 +2,7 @@
 Run with the dev server up:   python3 tests/test_site.py
 Or let the skill helper manage it:
   python3 ~/.claude/skills/webapp-testing/scripts/with_server.py --server "python3 serve.py" --port 4317 -- python3 tests/test_site.py
+The talk checks need this repo's serve.py (it mocks /api/chat; nothing is sent to OpenAI).
 Screenshots land in tests/shots/."""
 import hashlib, os, sys
 from playwright.sync_api import sync_playwright
@@ -265,6 +266,33 @@ with sync_playwright() as p:
         ctx.close()
     else:
         print("SKIP  face checks: no sprite frames built yet (assets/sprites/blink.* and sleep.*)")
+
+    # ---------- talking to koyak.net (serve.py stands in for the Worker's /api/chat) ----------
+    ctx, page, errors = open_page(b, 1440, 900)
+    page.wait_for_selector("canvas[data-face=awake]", timeout=20000)
+    send = page.locator("#writer-send")
+    check("talk: send is off until something is typed", send.is_disabled())
+    page.keyboard.type("hello there"); page.keyboard.press("Enter"); page.keyboard.type("who are you")
+    check("talk: what was typed since the last send is the message", page.evaluate("__typewriter.draftText()") == "hello there who are you", page.evaluate("__typewriter.draftText()"))
+    send.click()
+    page.wait_for_selector("canvas[data-turn=ai]", timeout=3000)
+    page.wait_for_selector("canvas[data-face=talking]", timeout=15000)
+    before = page.evaluate("__typewriter.page.glyphs.filter(g => !g.ai).length")
+    page.keyboard.type("zz")
+    check("talk: the visitor can't type on koyak.net's turn", page.evaluate("__typewriter.page.glyphs.filter(g => !g.ai).length") == before)
+    check("talk: send is off on koyak.net's turn", send.is_disabled())
+    page.wait_for_selector("canvas[data-turn=you]", timeout=90000)
+    check("talk: koyak.net's words are its own ink", page.evaluate("__typewriter.page.glyphs.some(g => g.ai)"))
+    check("talk: lips stop when the typing does", page.evaluate("document.getElementById('plate-canvas').dataset.face") in ("awake", "blinking"))
+    check("talk: the reply joins the conversation", page.evaluate("__typewriter.history.map(m => m.role).join()") == "user,assistant")
+    page.keyboard.type("ok")
+    lines = page.evaluate("""() => { const t = __typewriter.page, L = {}; for (const g of t.glyphs) (L[g.line] ||= []).push(g.ai ? 'a' : 'u');
+      return Object.keys(L).map(Number).sort((a, b) => a - b).map(n => [n, L[n].includes('a') ? 'a' : 'u']); }""")
+    gaps = [(lines[i + 1][0] - lines[i][0]) for i in range(len(lines) - 1) if lines[i][1] != lines[i + 1][1]]
+    check("talk: one blank line between speakers", gaps == [2, 2], f"line steps where the speaker changes: {gaps}")
+    page.locator("#writer").screenshot(path=f"{SHOTS}/typewriter-talk.png")
+    check("talk: no console errors", not errors, "; ".join(errors)[:200])
+    ctx.close()
 
     b.close()
 

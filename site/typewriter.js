@@ -1,7 +1,9 @@
 /* The typewriter. Every frame that moves is composed in 2D (sheet, machine, pressed keys, flying
    typebars), then printed by the same press as the girl at a finer screen so the keys keep their detail.
    Typed letters ride on top with their own ink: ribbon fibre, a little bleed, uneven pressure.
-   Type on the keyboard or press the keys; Enter (or the lever) feeds a new line. */
+   Type on the keyboard or press the keys; Enter (or the lever) feeds a new line.
+   The send button hands the machine to koyak.net: it glows pink, the girl's lips move, and the site types its
+   answer back in purple ink, a key at a time, with a person's uneven hands and an even carriage return. */
 (() => {
   const canvas = document.getElementById("writer-canvas");
   const sink = document.getElementById("writer-input");
@@ -18,12 +20,17 @@
     precision highp float;
     uniform sampler2D uLum, uMask;
     uniform vec2 uRes;
-    uniform float uPitch, uDevelop, uSeed, uInkPx;
+    uniform float uPitch, uDevelop, uSeed, uInkPx, uMood, uDither;
 
     const vec3 NIGHT = vec3(0.027, 0.035, 0.212);
     const vec3 INK   = vec3(0.231, 0.259, 0.839);
     const vec3 PAPER = vec3(0.925, 0.933, 1.0);
     const vec3 RIBBON = vec3(0.055, 0.063, 0.29);
+    // koyak.net's turn: the machine prints in dark pink, and its own words come out in purple
+    const vec3 INK_AI = vec3(0.55, 0.13, 0.47);
+    const vec3 PAPER_AI = vec3(1.0, 0.86, 0.95);
+    const vec3 PURPLE = vec3(0.36, 0.09, 0.55);
+    const vec3 PURPLE_FRINGE = vec3(0.6, 0.3, 0.86);
     const float LEVELS = 7.0;
 
     float hash(vec2 p) {
@@ -64,7 +71,12 @@
       return vec2(best, bt);
     }
 
+    // ordered (Bayer 4x4) threshold: the type is printed as a dither, not a smooth fill
+    float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
+    float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a); }
+
     float inkAt(vec2 uv) { return texture2D(uMask, uv).g; }
+    float aiAt(vec2 uv) { return texture2D(uMask, uv).b; }
 
     void main() {
       vec2 px = gl_FragCoord.xy;
@@ -75,7 +87,8 @@
 
       // the sheet takes a screen twice as fine, so type on it stays readable
       vec2 s = screen(px, paper > 0.5 ? pitch * 0.5 : pitch, radians(22.0));
-      vec3 dotc = mix(INK, PAPER, smoothstep(0.4, 0.95, s.y));
+      vec3 ink0 = mix(INK, INK_AI, uMood);
+      vec3 dotc = mix(ink0, mix(PAPER, PAPER_AI, uMood * 0.8), smoothstep(0.4, 0.95, s.y));
       vec3 col = mix(NIGHT, dotc, s.x);
       float alpha = max(s.x, paper);
 
@@ -87,10 +100,20 @@
                      inkAt(uv + o * vec2(0.7, 0.7)) + inkAt(uv - o * vec2(0.7, 0.7))) / 6.0;
       vec2 fp = rot(0.35) * px / uInkPx;
       float fibre = 0.74 + 0.26 * vnoise(fp * vec2(0.35, 2.6)) * (0.6 + 0.4 * vnoise(fp * 0.9 + 17.0));
-      float ink = clamp(m * fibre * 1.08 + bleed * 0.3 * dev, 0.0, 1.0) * dev;
+      float ink = clamp(m * fibre * 0.86 + bleed * 0.3 * dev, 0.0, 1.0) * dev;
+      // which hand struck it: blue for the visitor, purple for koyak.net (the mask's blue channel)
+      float aiB = aiAt(uv) + (aiAt(uv + o * vec2(1.0, 0.0)) + aiAt(uv - o * vec2(1.0, 0.0)) +
+                              aiAt(uv + o * vec2(0.0, 1.0)) + aiAt(uv - o * vec2(0.0, 1.0))) * 0.25;
+      float ai = clamp(aiB / max(m + bleed, 0.02), 0.0, 1.0);
+      float b = (bayer4(px / uDither) + 0.5 / 16.0);
+      float dith = step(b, ink);
       vec3 inkc = mix(INK * 0.8, RIBBON, smoothstep(0.25, 0.85, m * fibre));
-      col = mix(col, inkc, ink * 0.94);
-      alpha = max(alpha, ink);
+      vec3 aic = mix(PURPLE_FRINGE, PURPLE, smoothstep(0.25, 0.85, m * fibre));
+      inkc = mix(inkc, aic, ai);
+      // a second, offset threshold picks the lighter ribbon tone, so the dither has two inks in it
+      inkc = mix(inkc, mix(INK, PURPLE_FRINGE, ai), step(ink, bayer4(px / uDither + 2.0)) * 0.55);
+      col = mix(col, inkc, dith);
+      alpha = max(alpha, dith);
       gl_FragColor = vec4(col, alpha);
     }`;
 
@@ -116,8 +139,8 @@
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   const U = {};
-  for (const n of ["uLum", "uMask", "uRes", "uPitch", "uDevelop", "uSeed", "uInkPx"]) U[n] = gl.getUniformLocation(prog, n);
-  gl.uniform1i(U.uLum, 0); gl.uniform1i(U.uMask, 1); gl.uniform1f(U.uSeed, 11);
+  for (const n of ["uLum", "uMask", "uRes", "uPitch", "uDevelop", "uSeed", "uInkPx", "uMood", "uDither"]) U[n] = gl.getUniformLocation(prog, n);
+  gl.uniform1i(U.uLum, 0); gl.uniform1i(U.uMask, 1); gl.uniform1f(U.uSeed, 11); gl.uniform1f(U.uMood, 0);
 
   function makeTex(unit) {
     const t = gl.createTexture();
@@ -141,7 +164,8 @@
   // glyph lines are counted from the line being typed (0, then -1, -2 ... above it), so nothing grows as you
   // keep going: each Enter shifts the sheet up one line and forgets whatever has left the top of the canvas.
   // line: lines fed so far (only a count); rise: how far the sheet's top edge has climbed, in lines, capped
-  const page = { line: 0, col: 0, glyphs: [], rise: 0, feedFrom: 0, feedT0: -1e9, jamT0: -1e9 };
+  // ink: something was printed on the current line; blankAbove: the line above it was left empty
+  const page = { line: 0, col: 0, glyphs: [], rise: 0, feedFrom: 0, feedT0: -1e9, jamT0: -1e9, ink: false, blankAbove: true };
   const anims = { keys: [], bars: [], space: -1e9, lever: -1e9 };
   const rand = (a, b) => a + Math.random() * (b - a);
   const colW = () => (M.print.x1 - M.print.x0) / M.print.cols;
@@ -193,7 +217,6 @@
     } else {
       ctx.fillStyle = "#f00"; ctx.fillRect(M.paper.x0 + x, vis, M.paper.x1 - M.paper.x0, M.paper.feed - vis);
       ctx.globalCompositeOperation = "lighter";
-      ctx.fillStyle = "#0f0";
       ctx.font = `${fontPx()}px ${FONT}`;
       ctx.textBaseline = "alphabetic"; ctx.textAlign = "center";
       for (const g of page.glyphs) {
@@ -201,6 +224,7 @@
         const gx = M.print.x0 + (g.col + 0.5) * colW() + x;
         const gy = M.print.y + g.line * M.print.line - feedNow(now);
         if (gy < -HEAD - 60 || gy > M.paper.feed + 60) continue;
+        ctx.fillStyle = g.ai ? "#0ff" : "#0f0"; // blue channel marks koyak.net's own words
         drawGlyph(ctx, g, gx, gy);
       }
     }
@@ -300,8 +324,12 @@
   /* ---------- loop ---------- */
   const state = { develop: reduce.matches ? 1 : 0, t0: clock.now(), dirty: true };
   let raf = 0;
+  // the machine's colour: 0 is the visitor's (ultramarine), 1 is koyak.net's turn (dark pink)
+  const mood = { from: 0, to: 0, t0: -1e9, ms: 650 };
+  const moodNow = (now) => { const k = Math.min(1, (now - mood.t0) / mood.ms); return mood.from + (mood.to - mood.from) * ease(k); };
+  function setMood(to) { const now = clock.now(); mood.from = moodNow(now); mood.to = to; mood.t0 = reduce.matches ? -1e9 : now; kick(); }
   function busy(now) {
-    return state.develop < 1 || now - page.feedT0 < T.feed || now - page.jamT0 < 240 ||
+    return state.develop < 1 || now - mood.t0 < mood.ms || now - page.feedT0 < T.feed || now - page.jamT0 < 240 ||
       anims.keys.some((a) => now - a.t0 < T.release) || anims.bars.some((a) => now - a.t0 < T.down) ||
       now - anims.space < T.release || page.glyphs.some((g) => g.at > now - 20);
   }
@@ -311,6 +339,7 @@
     if (state.develop < 1) state.develop = Math.min(1, (now - state.t0) / 1600);
     compose(now);
     gl.uniform1f(U.uDevelop, state.develop);
+    gl.uniform1f(U.uMood, moodNow(now));
     gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     anims.keys = anims.keys.filter((a) => now - a.t0 < T.release);
@@ -332,6 +361,7 @@
     gl.uniform2f(U.uRes, w, h);
     gl.uniform1f(U.uPitch, Math.max(2.6, 2.1 * dpr));
     gl.uniform1f(U.uInkPx, Math.max(1, 0.55 * dpr));
+    gl.uniform1f(U.uDither, Math.max(1, Math.round(dpr))); // one dither cell per CSS pixel
     kick();
   }
 
@@ -353,14 +383,16 @@
     return f.a1 - ((key.x - lo) / (hi - lo)) * span * 0.94 - row * 0.9;
   }
 
-  function type(ch) {
+  function type(ch, ai = false) {
     if (!M) return;
     const now = clock.now(), key = keyFor(ch);
     anims.keys.push({ key, t0: now });
     if (page.col >= M.print.cols) { page.jamT0 = now; kick(); return; } // at the margin: the keys go down, nothing prints
     const col = page.col++;
+    page.ink = true;
+    if (!ai) { draft.lines[draft.lines.length - 1][col] = ch; draftChanged(); }
     const g = {
-      ch, line: 0, col, at: reduce.matches ? 0 : now + T.up,
+      ch, ai, line: 0, col, at: reduce.matches ? 0 : now + T.up,
       rot: rand(-0.03, 0.03), dx: rand(-1.1, 1.1), dy: rand(-1.3, 1.3), sc: rand(0.985, 1.02),
       a: rand(0.8, 1), side: Math.floor(Math.random() * 4),
       ghost: Math.random() < 0.12 ? [rand(-1.2, 1.2), rand(-0.8, 0.8)] : null,
@@ -382,6 +414,8 @@
     // shift every line up one; the offset starts a line low so nothing jumps, then the sheet shoots up to it
     page.feedFrom = feedNow(now) - M.print.line; page.feedT0 = reduce.matches ? -1e9 : now;
     page.line++; page.col = 0;
+    page.blankAbove = !page.ink; page.ink = false; // was the line just left empty? (keeps exactly one blank line between turns)
+    if (turn === "you") { draft.lines.push([]); draftChanged(); }
     const keep = keepLines();
     if (page.rise < keep) page.rise++; // past this the top edge is off the canvas for good; stop counting
     for (const g of page.glyphs) g.line--;
@@ -404,7 +438,9 @@
   }
 
   function handleKey(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { send(); return true; }
     if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return false;
+    if (turn !== "you") return e.key.length === 1 || e.key === "Enter" || e.key === "Backspace"; // koyak.net has the keys
     if (e.key === "Enter") ret();
     else if (e.key === "Backspace") back();
     else if (e.key === " ") space();
@@ -414,12 +450,15 @@
   }
   window.addEventListener("keydown", (e) => {
     if (e.target !== sink && e.target.closest && e.target.closest("input, textarea, select, [contenteditable]")) return;
+    // Enter / Space on a focused card must activate it, not feed the typewriter
+    if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest(".cards, .send")) return;
     if (e.repeat) { if (e.key.length === 1 || e.key === "Enter" || e.key === " ") e.preventDefault(); return; }
     if (handleKey(e)) e.preventDefault();
   });
   // phones: the soft keyboard reports through input events rather than keydown
   sink.addEventListener("beforeinput", (e) => {
     e.preventDefault();
+    if (turn !== "you") return;
     if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") ret();
     else if (e.inputType === "deleteContentBackward") back();
     else if (e.data) for (const ch of e.data) ch === " " ? space() : type(ch);
@@ -436,9 +475,9 @@
     if (x > M.paper.x0 && x < M.paper.x1 && y > paperTop() && y < M.paper.feed) return { paper: true };
     return null;
   }
-  canvas.addEventListener("pointermove", (e) => { if (M) { const h = hit(e); canvas.style.cursor = h && !h.paper ? "pointer" : h ? "text" : "default"; } });
+  canvas.addEventListener("pointermove", (e) => { if (M && turn !== "you") { canvas.style.cursor = "wait"; return; } if (M) { const h = hit(e); canvas.style.cursor = h && !h.paper ? "pointer" : h ? "text" : "default"; } });
   canvas.addEventListener("pointerdown", (e) => {
-    if (!M) return;
+    if (!M || turn !== "you") return;
     const h = hit(e);
     if (!h) return;
     if (h.key) { const k = h.key.k; type(/[A-Z]/.test(k) && !e.shiftKey ? k.toLowerCase() : k); }
@@ -447,6 +486,139 @@
     if (e.pointerType !== "mouse") sink.focus({ preventScroll: true }); // bring up the soft keyboard
     e.preventDefault();
   });
+
+  /* ---------- talking to koyak.net ---------- */
+  // what the visitor has typed since their last send, kept apart from the page (which forgets lines off the top)
+  const draft = { lines: [[]] };
+  const history = []; // { role, content }, the conversation so far (the Worker keeps only the latest few)
+  let turn = "you";    // "you" | "ai": while it is koyak.net's turn, nothing the visitor does reaches the machine
+  const sendBtn = document.getElementById("writer-send");
+  const live = document.getElementById("writer-status");
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  function draftText() {
+    // the carriage is only 24 wide, so line breaks are just returns: join them; an empty line is a paragraph
+    const lines = draft.lines.map((l) => Array.from(l, (c) => c || " ").join("").trim());
+    return lines.reduce((acc, l) => (l ? acc + (acc && !acc.endsWith("\n") ? " " : "") + l : acc && !acc.endsWith("\n\n") ? acc + "\n\n" : acc), "").trim();
+  }
+  function draftChanged() { if (sendBtn) sendBtn.disabled = turn !== "you" || !draftText(); }
+
+  // a carriage return made by the hands at the keys: a beat at the margin, the lever, a beat to find the keys again
+  async function carriage() {
+    await wait(reduce.matches ? 60 : 300);
+    ret();
+    await wait(reduce.matches ? 80 : 460);
+  }
+  // end the line in use (if any) and leave exactly one blank line before the next speaker
+  async function gap() {
+    if (page.col > 0 || page.ink) await carriage();
+    if (!page.blankAbove) await carriage();
+  }
+
+  // the model's text, made printable on this machine and broken at words into 24-column lines ("" = blank line)
+  function layout(text) {
+    const clean = text.normalize("NFKC")
+      .replace(/[\u2018\u2019\u201A\u2032]/g, "'").replace(/[\u201C\u201D\u201E\u2033]/g, '"')
+      .replace(/[\u2013\u2014\u2212]/g, "-").replace(/\u2026/g, "...").replace(/[*_#`]/g, "")
+      .replace(/[^\x20-\x7E\n]/g, "").replace(/\r/g, "");
+    const cols = M.print.cols, out = [];
+    for (const para of clean.split(/\n\s*\n+/)) {
+      if (out.length) out.push("");
+      for (const raw of para.split("\n")) {
+        let line = "";
+        for (let word of raw.split(/\s+/).filter(Boolean)) {
+          while (word.length > cols) { if (line) { out.push(line); line = ""; } out.push(word.slice(0, cols)); word = word.slice(cols); }
+          if (!word) continue;
+          if (line && line.length + 1 + word.length > cols) { out.push(line); line = word; }
+          else line = line ? line + " " + word : word;
+        }
+        if (line) out.push(line);
+      }
+    }
+    while (out.length && !out[out.length - 1]) out.pop();
+    return out;
+  }
+
+  // a person's hands: no two keystrokes the same distance apart, a breath after words, longer after a sentence
+  function keyDelay(prev, ch) {
+    if (reduce.matches) return 18;
+    let d = 55 + Math.pow(Math.random(), 1.8) * 190;
+    if (prev === " ") d += Math.random() < 0.35 ? 60 + Math.random() * 160 : 0;     // finding the next word
+    if (/[.!?]/.test(prev)) d += 260 + Math.random() * 380;                          // end of a thought
+    else if (/[,;:]/.test(prev)) d += 120 + Math.random() * 200;
+    if (prev && prev === ch) d *= 0.7;                                                // a doubled letter comes quick
+    if (Math.random() < 0.04) d += 250 + Math.random() * 500;                         // a hesitation
+    return d;
+  }
+
+  const talk = (talking) => window.dispatchEvent(new CustomEvent("koyak:talk", { detail: { talking } }));
+  async function typeOut(text) {
+    const lines = layout(text);
+    talk(true);
+    let prev = "";
+    for (let i = 0; i < lines.length; i++) {
+      if (i > 0) { talk(false); await carriage(); talk(true); prev = ""; }
+      for (const ch of lines[i]) {
+        await wait(keyDelay(prev, ch));
+        if (ch === " ") space(); else type(ch, true);
+        prev = ch;
+      }
+    }
+    await wait(reduce.matches ? 0 : T.down);
+    talk(false);
+  }
+
+  function setTurn(t) {
+    turn = t;
+    canvas.dataset.turn = t;
+    setMood(t === "you" ? 0 : 1);
+    if (t !== "you") { anims.keys = []; canvas.style.cursor = "wait"; } else canvas.style.cursor = "";
+    draftChanged();
+  }
+
+  const SILENCE = {
+    "no-key": "i'm here. i just can't find my voice yet.",
+    rate: "slow down. my keys are still warm. try me again in a minute.",
+    other: "the line went quiet for a second. say that again?",
+  };
+  async function ask() {
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 60000);
+    try {
+      const r = await fetch("api/chat", {
+        method: "POST", headers: { "content-type": "application/json" }, signal: ctl.signal,
+        body: JSON.stringify({ messages: history.slice(-16) }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.reply) return { reply: data.reply };
+      return { reply: SILENCE[data.error] || SILENCE.other, failed: true };
+    } catch (_) {
+      return { reply: SILENCE.other, failed: true };
+    } finally { clearTimeout(timer); }
+  }
+
+  async function send() {
+    if (!M || turn !== "you") return;
+    const text = draftText();
+    if (!text) { page.jamT0 = clock.now(); kick(); return; }
+    setTurn("ai");
+    if (live) live.textContent = "koyak.net is typing";
+    history.push({ role: "user", content: text });
+    draft.lines = [[]];
+    const answer = ask();            // the request and the carriage returns happen together
+    await gap();
+    const { reply, failed } = await answer;
+    if (!failed) history.push({ role: "assistant", content: reply });
+    await typeOut(reply);
+    await gap();
+    draft.lines = [[]];
+    setTurn("you");
+    if (live) live.textContent = "koyak.net wrote: " + reply;
+    describe();
+  }
+  if (sendBtn) {
+    sendBtn.addEventListener("click", () => send());
+    draftChanged();
+  }
 
   /* ---------- load ---------- */
   Promise.all([
@@ -465,5 +637,5 @@
     reduce.addEventListener("change", () => { state.develop = 1; kick(); });
   }).catch((e) => console.error(e));
 
-  window.__typewriter = { page, type, space, back, ret, T, clock, render: () => frame() }; // for the tests (T: timings)
+  window.__typewriter = { page, type, space, back, ret, T, clock, render: () => frame(), send, draftText, history, layout, get turn() { return turn; } }; // for the tests (T: timings)
 })();

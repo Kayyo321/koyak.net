@@ -2,6 +2,7 @@
 
 blink sheet: open, half-closed, closed            -> open, blink-half, blink-closed
 sleep sheet: open, drowsy, asleep with head down  -> (open), sleep-half, sleep
+talk sheet:  closed, half open, open (optional)  -> talk-half, talk-open (lips only, see mouth.py)
 """
 import glob, os
 import numpy as np
@@ -53,7 +54,14 @@ def frames_from_sheets(folder, anchor):
     tb = register(ref, b[0]); print(f"  blink sheet -> mascot: scale {tb[0]:.3f}, shift {tb[1]},{tb[2]}px")
     tz = register(ref, z[0]); print(f"  sleep sheet -> mascot: scale {tz[0]:.3f}, shift {tz[1]},{tz[2]}px")
     # one transform per sheet (from its open frame) so the moving eyes and the lowered head are never "corrected"
-    return {
+    out = {
         "open": _apply(b[0], *tb), "blink-half": _apply(b[1], *tb), "blink-closed": _apply(b[2], *tb),
         "sleep-half": _apply(z[1], *tz), "sleep": _apply(z[2], *tz),
     }
+    talk = _find(folder, "talk")
+    if talk:  # closed, half open, open: only the lips are kept (mouth.py), laid onto the open frame
+        from mouth import talk_frames
+        t = _slice(talk); tt = register(out["open"], t[0])
+        print(f"  talk sheet -> open frame: scale {tt[0]:.3f}, shift {tt[1]},{tt[2]}px")
+        out["talk-half"], out["talk-open"] = talk_frames(out["open"], [_apply(x, *tt) for x in t])
+    return out

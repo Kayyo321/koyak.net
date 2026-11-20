@@ -3,5 +3,7 @@
   "blink-half": "assets/face-blink-half.jpg",
   "blink-closed": "assets/face-blink-closed.jpg",
   "sleep-half": "assets/face-sleep-half.jpg",
-  "sleep": "assets/face-sleep.jpg"
+  "sleep": "assets/face-sleep.jpg",
+  "talk-half": "assets/face-talk-half.jpg",
+  "talk-open": "assets/face-talk-open.jpg"
 }
