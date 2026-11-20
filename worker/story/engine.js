@@ -127,13 +127,29 @@ const GENERIC = {
   inspect: ["\\b(look at|look in|look under|look behind|look for|examine|inspect|check|study|read|search|peer at|peek at|stare at|x)\\b"],
   back: ["\\b(go back|turn back|back up|walk back|head back|retreat|turn around|return|backtrack)\\b", "^back$"],
   wait: ["^(wait|z|do nothing|stand still|stay put|stay here|stand there)$"],
-  help: ["^(help|hint|hints|what can i do|what now|options|commands|what do i do|what should i do)$"],
+  // asking what there is to do here: answered with this scene's own hint. HELP_ASKED is the stricter half, for the
+  // modes where a short line like "now what" could just as well be the visitor's answer
+  help: ["^(what now|now what|what next|and now)$"],
   inventory: ["^(i|inv|inventory|what do i have|what am i carrying|check my pockets|items)$"],
   recall: ["\\bwhat did (they|she|the voices?|each|both|either|it) (say|tell)\\b", "\\b(remind me|recap|who said)\\b"],
   ask: ["\\b(ask|say to|call to|call out to|shout to|tell|question|answer|reply to|talk to|speak to)\\b"],
   question: ["^(what|who|where|why|how|is|are|do|did|can|could|will|would|whats)\\b"],
   both: ["\\b(both|each|either|them|everyone|all of them)\\b"],
 };
+
+const HELP_ASKED = [
+  "^(help|hint|hints|options|choices|commands|moves|clue|clues)( (me|please|pls|plz))?$",
+  "^(give me |i need |can i have |could i have |can i get )?(a |an |some |any )?(help|hints?|clues?|tips?)( (please|pls|plz))?$",
+  "\\bwhat (are|r) (my|the|our|me) (options|choices|moves)\\b", "\\b(my|any|the|what) options\\b",
+  "\\bwhat (can|could|should|shall|do|may|might) (i|we) (do|try|say|write)\\b(?! (with|to|about|for|if|when|that|this)\\b)",
+  "\\bwhat (am i|are we) (supposed|meant|allowed|able) to (do|try|say|write)\\b",
+  "\\bwhat (is|are) there to do\\b", "\\bwhat (are|r) (the|my) (commands|verbs)\\b",
+  "\\b(where|which way|which ways) (can|could|should|do) (i|we) go\\b",
+  "\\b(i am|im|i feel|i got|i have got|i have) (stuck|lost|confused)\\b", "\\bhow do (i|we|you) play\\b",
+  "\\bhelp me\\b(?! (with|to|carry|lift|find|get|open|up|down|across)\\b)",
+];
+const askedForHelp = (text) => any(HELP_ASKED, text) && !/^(ask|say|tell|shout|call|whisper|yell|answer|reply)\b/.test(text);
+const wantsHelp = (text) => askedForHelp(text) || any(GENERIC.help, text);
 
 export async function sceneTurn(pack, vs, raw, ai) {
   const run = vs.run;
@@ -145,7 +161,7 @@ export async function sceneTurn(pack, vs, raw, ai) {
 
   if (!text) return flat(say(fill(nth(scene.unclear, 0) || pack.scene.unclear, run)));
   if (any(pack.leave, text)) { vs.mode = "chat"; return flat(stepsOf(pack.scene.leave, run)); }
-  if (any(GENERIC.help, text)) return flat(say(fill(scene.hint || pack.scene.hint, run)));
+  if (wantsHelp(text)) return perform(pack, vs, run, scene, { kind: "help" });
 
   let r = matchScene(pack, run, scene, text, raw);
   if (!r && ai) r = await interpret(pack, run, scene, raw, ai);
@@ -194,7 +210,8 @@ async function interpret(pack, run, scene, raw, ai) {
   const intents = [];
   for (const a of scene.actions || []) intents.push({ id: "act:" + a.id, desc: fill(a.desc, run), commit: !!(a.commit || a.ending) });
   for (const t of scene.things || []) intents.push({ id: "thing:" + t.id, desc: "examine, touch or listen to: " + (t.desc || t.id) });
-  intents.push({ id: "look", desc: "look around" }, { id: "listen", desc: "listen" });
+  intents.push({ id: "look", desc: "look around" }, { id: "listen", desc: "listen" },
+    { id: "help", desc: "ask what they can do here, what their options are, or for a hint" });
   if (scene.back) intents.push({ id: "back", desc: "go back the way they came" });
   if (scene.voices || scene.near) intents.push({ id: "ask", desc: "say something to, or ask a question of, one or both of the voices" });
   const found = Object.keys(run.seen).map((f) => pack.factText?.[f]).filter(Boolean);
@@ -225,6 +242,7 @@ function perform(pack, vs, run, scene, r) {
   switch (r.kind) {
     case "unclear": return flat(say(fill(nth(scene.unclear, bump(run, "unclear")) || pack.scene.unclear, run)));
     case "freeform": return flat(say(r.say));
+    case "help": return flat(say(fill(scene.hint || pack.scene.hint, run)));
     case "look": return flat(stepsOf(nth(scene.look, bump(run, run.scene + ":look")), run));
     case "listen": note(run, scene.listenSets); return flat(stepsOf(nth(scene.listen, bump(run, run.scene + ":listen")), run));
     case "wait": return flat(say(fill(scene.wait || pack.scene.wait, run)));
@@ -307,6 +325,8 @@ export async function codaTurn(pack, vs, raw, ai) {
   const line = printable(raw, 160);
   const text = norm(line);
   const inv = pack.invite;
+  // asking what to do isn't the last line; she says again what she wants, and waits for it
+  if (askedForHelp(text)) return flat(stepsOf(C.hint || C.ask, null));
   let kind = !text || any(C.emptyMatch, text) ? "empty"
     : any(inv.match, text) && !any(inv.not, text) ? "invite" : null;
   if (!kind && ai && text.split(" ").length >= 3) {
@@ -338,7 +358,7 @@ export async function repriseTurn(pack, vs, raw, ai) {
   const text = norm(line);
   const rep = vs.reprise;
   if (any(pack.leave, text)) { vs.mode = "chat"; return flat(stepsOf(R.leave, null), { fx: { t: "swap", on: false } }); }
-  if (!text) return flat(stepsOf(nth(R.nudge, rep.step - 1), null));
+  if (!text || askedForHelp(text)) return flat(stepsOf(nth(R.nudge, rep.step - 1), null));
 
   if (rep.step <= R.beats) {
     rep.beats.push(line);
@@ -447,6 +467,26 @@ export function paper(pack, vs, id, face) {
   // held to the light: the back shows through, and so does pencil pressed in from a sheet that once lay on top
   if (plane.kind === "bad") learn(vs, "saw:impression");
   return { mirror: scrap.lines, impression: plane.kind === "bad" ? P.impression : null, lines: paper(pack, vs, id, "front").lines };
+}
+
+/* ---------- every scripted sequence in the pack, in order, for the local debug panel only ----------
+   (worker/index.js serves this only on a dev server with STORY_DEBUG=1.) A bad end runs on through its closing
+   line and an ordinary answer to it, so the scene is seen all the way to where it hands the page back. */
+export function cutscenes(pack) {
+  const list = [];
+  const C = pack.coda || {};
+  for (const [id, e] of Object.entries(pack.endings || {})) {
+    const steps = e.kind === "bad"
+      ? flat(stepsOf(e.steps, null), stepsOf(e.coda, null), stepsOf(C.ask, null), { pause: 1500 }, stepsOf(C.ordinary, null))
+      : flat(stepsOf(e.steps, null));
+    list.push({ id: "end:" + id, kind: e.kind, steps });
+  }
+  const R = pack.reprise;
+  if (R) {
+    const parts = [["open", R.open]].concat(lines(R.after).map((a, i) => ["beat " + (i + 1), a]), [["finale", R.finale], ["leave", R.leave]]);
+    for (const [name, s] of parts) if (s) list.push({ id: "reprise:" + name, kind: "reprise", steps: flat(stepsOf(s, null)) });
+  }
+  return list;
 }
 
 /* ---------- what the chat model may know about this visitor ---------- */

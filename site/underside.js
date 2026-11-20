@@ -425,8 +425,11 @@
         await wait(reduce.matches ? 0 : Math.min(f.ms ?? 900, 1200));
         return;
       }
+      case "slide": await window.koyakBackdrop?.slide(f); return;
+      case "flash": await window.koyakBackdrop?.flash(f); return;
       case "clear": {
         const ms = f.ms ?? 1200;
+        window.koyakBackdrop?.clear(ms);
         fade(dimEl, 0, ms);
         for (const a of fxLayer.querySelectorAll(".fx-art")) { fade(a, 0, ms); setTimeout(() => a.remove(), (reduce.matches ? 0 : ms) + 50); }
         root.style.setProperty("--lift-ms", (reduce.matches ? 0 : ms) + "ms"); root.style.setProperty("--tilt", "0deg"); moved();
@@ -459,6 +462,11 @@
   window.koyakPaper = { fx, open: openUnder, close: closeUnder, get isOpen() { return state.open; } };
 
   window.addEventListener("koyak:story", (e) => { if (e.detail && e.detail.planes) { state.on = true; edge.hidden = false; render(e.detail.planes); } });
+
+  // TEMPORARY: the cutscene debug panel, on a local dev server only (it shows itself if the Worker lists scenes)
+  if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+    const s = document.createElement("script"); s.src = "debug.js"; document.body.appendChild(s);
+  }
 
   /* ---------- what is here for this visitor ---------- */
   post("api/hello").then(async (h) => {

@@ -5,6 +5,8 @@
    The OpenAI key lives only here, as the Worker secret OPENAI_API_KEY; the browser never sees it.
    Anything the site remembers about a visitor lives server-side in their Visitor object (worker/story/). */
 import { PERSONA } from "./persona.js";
+import { loadPack } from "./story/pack.js";
+import { cutscenes } from "./story/engine.js";
 export { Visitor } from "./story/visitor.js";
 
 const MAX_TURNS = 16;   // the most recent messages sent upstream
@@ -20,9 +22,19 @@ export default {
     if (url.pathname === "/api/chat") return chat(request, env, url);
     if (url.pathname === "/api/hello") return hello(request, env, url);
     if (url.pathname === "/api/paper") return paperRoute(request, env, url);
+    if (url.pathname === "/api/debug/cutscenes") return debugCutscenes(env, url);
     return env.ASSETS.fetch(request);
   },
 };
+
+// TEMPORARY: the cutscene debug panel (site/debug.js). Lists the scenes only on a local dev server with
+// STORY_DEBUG=1 in .dev.vars; everywhere else it answers with nothing, and the panel stays hidden.
+async function debugCutscenes(env, url) {
+  if (env.STORY_DEBUG !== "1" || !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(url.hostname)) return json({ cutscenes: null });
+  const pack = await loadPack(env);
+  if (!pack) return json({ cutscenes: null });
+  return json({ cutscenes: cutscenes(pack) });
+}
 
 // only this site's own pages may use the endpoints (they spend real credits and hold per-visitor state)
 function sameSite(request, url) {

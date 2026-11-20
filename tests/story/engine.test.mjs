@@ -63,6 +63,35 @@ test("unfolding starts a run once; ambiguous input does not advance", async () =
   assert.equal(text((await play(vs, "touch the parcel")).steps), "FIXTURE: it ticks.");
 });
 
+test("asking what you can do gets this scene's own hint, however it's put", async () => {
+  const asks = ["what are my options", "What can I do here?", "what can i do right now", "what's there to do",
+    "what should I do", "now what?", "help", "give me a hint", "I'm stuck", "where can I go", "what am I supposed to do"];
+  for (const q of asks) {
+    const vs = started();
+    assert.equal(text((await play(vs, q)).steps), "FIXTURE: stair or gate.", q);
+    assert.equal(vs.run.scene, "quay", q + " moves nothing");
+  }
+  const vs = started();
+  await play(vs, "climb the stair");
+  assert.equal(text((await play(vs, "what are my options")).steps), "FIXTURE: top or back.", "the hint follows the visitor");
+  assert.equal(vs.run.scene, "stair");
+  // a question that names something is about that thing, not a request for help
+  const w = started();
+  assert.equal(text((await play(w, "what can I do with the parcel")).steps), "FIXTURE: a parcel, string-tied.");
+});
+
+test("asking what to do after a bad end, or mid-reprise, isn't taken as the visitor's line", async () => {
+  const vs = started();
+  await play(vs, "stair", "top");
+  assert.equal(text((await play(vs, "what are my options")).steps), "FIXTURE: your last line?");
+  assert.equal(vs.mode, "coda");
+  assert.equal(vs.planes.length, 0, "nothing folded yet");
+  await play(vs, "your turn");
+  assert.equal(vs.mode, "reprise");
+  assert.equal(text((await play(vs, "what should I say")).steps), "FIXTURE: say something.");
+  assert.equal(vs.reprise.step, 1, "the reprise waits");
+});
+
 test("approach before commit; back out; then commit to a bad end and write a coda", async () => {
   const vs = started();
   await play(vs, "climb the stair");
@@ -241,4 +270,14 @@ test("normalising what people type", () => {
   assert.equal(E.norm("What's in the PARCEL?!"), "what is in the parcel");
   assert.equal(E.norm("I don't know"), "i do not know");
   assert.equal(E.printable("“Hi” — there…"), '"Hi" - there...');
+});
+
+test("cutscenes: every ending and every scripted part of the reprise, in order (local debug panel only)", () => {
+  const list = E.cutscenes(pack);
+  const ids = list.map((c) => c.id);
+  for (const id of Object.keys(pack.endings)) assert.ok(ids.includes("end:" + id), id);
+  assert.ok(ids.includes("reprise:open") && ids.includes("reprise:finale"));
+  const bad = list.find((c) => c.kind === "bad");
+  assert.match(text(bad.steps), /FIXTURE: your last line\?/, "a bad end runs on through its closing line");
+  assert.ok(list.every((c) => c.steps.length && c.steps.every((s) => s && typeof s === "object")));
 });

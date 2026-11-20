@@ -295,6 +295,49 @@
     tone(t, { freq: 420, to: 300, gain: 0.05 * gain, decay: 0.03 });
   }
 
+  /* ---------- cutscenes ---------- */
+  // the room under a scene: low air, and two close notes beating slowly against each other
+  let droneOn = null;
+  function drone(on) {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    if (on) {
+      if (droneOn) return;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.11, t + 2.8);
+      g.connect(master);
+      const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true;
+      const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 170; f.Q.value = 0.8;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.06;
+      const lg = ctx.createGain(); lg.gain.value = 70;
+      lfo.connect(lg).connect(f.frequency);
+      const ng = ctx.createGain(); ng.gain.value = 0.9;
+      src.connect(f).connect(ng).connect(g);
+      const nodes = [src, lfo];
+      for (const [type, hz, gain] of [["sine", 46.2, 0.32], ["sine", 46.9, 0.28], ["triangle", 92.6, 0.035], ["sine", 1387, 0.004]]) {
+        const o = ctx.createOscillator(); o.type = type; o.frequency.value = hz;
+        const og = ctx.createGain(); og.gain.value = gain;
+        o.connect(og).connect(g); nodes.push(o);
+      }
+      for (const n of nodes) n.start(t);
+      droneOn = { g, nodes };
+    } else {
+      if (!droneOn) return;
+      const { g, nodes } = droneOn; droneOn = null;
+      g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(Math.max(g.gain.value, 0.0002), t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
+      for (const n of nodes) n.stop(t + 2.5);
+    }
+  }
+  // a hit: something heavy, close, felt more than heard, with a thin ring left hanging after it
+  function sting({ gain = 1 } = {}) {
+    if (!live()) return;
+    const t = ctx.currentTime + 0.01;
+    tone(t, { freq: 64, to: 31, gain: 0.34 * gain, attack: 0.008, decay: 1.5 });
+    hiss(t, { type: "lowpass", freq: 700, to: 90, q: 0.6, gain: 0.14 * gain, attack: 0.004, decay: 0.8 });
+    tone(t + 0.05, { type: "triangle", freq: 1244, to: 1171, gain: 0.012 * gain, attack: 0.4, decay: 2.4 });
+  }
+
   const btn = document.getElementById("mute");
   function show() {
     if (!btn) return;
@@ -308,6 +351,6 @@
     show();
   }
 
-  window.koyakSound = { key, space, jam, carriage, paper, lift, say, voiceStart, voiceShape, voiceStop, setMuted,
+  window.koyakSound = { key, space, jam, carriage, paper, lift, say, voiceStart, voiceShape, voiceStop, setMuted, drone, sting,
     get muted() { return muted; }, get ready() { return !!ctx; } };
 })();

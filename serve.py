@@ -19,9 +19,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         offline. It never calls OpenAI. Send
         X-Mock: no-key|rate to fake the Worker's failures."""
         import json, random, time
-        if self.path.split("?")[0] == "/api/hello":
+        if self.path.split("?")[0] in ("/api/hello", "/api/debug/cutscenes"):
             # the story layer needs the Worker (`npm run dev`); here there is simply nothing under the page
-            data = b'{"arg": false}'
+            data = b'{"arg": false}' if self.path.split("?")[0] == "/api/hello" else b'{"cutscenes": null}'
             self.send_response(200); self.send_header("content-type", "application/json")
             self.send_header("content-length", str(len(data))); self.end_headers(); self.wfile.write(data); return
         if self.path.split("?")[0] != "/api/chat":

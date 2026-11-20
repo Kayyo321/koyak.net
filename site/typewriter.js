@@ -683,6 +683,7 @@
   }
   // what the server sends back is a short script: lines to type, a pause, a correction, an effect on the page
   async function perform(steps) {
+    for (const st of steps || []) if (st.fx && (st.fx.t === "slide" || st.fx.t === "flash")) window.koyakBackdrop?.preload(st.fx); // drawn ahead
     let said = ""; // what she ends up having said, corrections included
     for (const st of steps || []) {
       if (st.say) {
