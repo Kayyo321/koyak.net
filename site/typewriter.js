@@ -527,7 +527,8 @@
     if (!sendBtn) return;
     const empty = !draftText() && !retry;
     sendBtn.disabled = turn !== "you" || empty;
-    sendBtn.classList.toggle("is-empty", turn === "you" && empty); // the plane waits at half strength
+    // the plane waits at half strength; on her turn too, so it comes back at the strength it will rest at
+    sendBtn.classList.toggle("is-empty", empty);
   }
 
   // a carriage return made by the hands at the keys: a beat at the margin, the lever, a beat to find the keys again
@@ -683,6 +684,7 @@
     if (live) live.textContent = "koyak.net is typing";
     if (history[history.length - 1]?.content !== text || history[history.length - 1]?.role !== "user") history.push({ role: "user", content: text });
     draft.lines = [[]];
+    draftChanged(); // sent: the plane will come back at half strength
     const answer = ask(turnId);      // the request and the carriage returns happen together
     await gap();
     const data = await answer;

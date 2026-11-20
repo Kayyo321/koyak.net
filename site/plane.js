@@ -48,7 +48,8 @@
         float keep = smoothstep(uDissolve * 1.12 - 0.12, uDissolve * 1.12, hash(cell + 19.0));
         float r = 0.5 * sqrt(t) * 1.42 * (0.94 + 0.12 * hash(cell + 3.0)) * keep;
         float aa = 0.75 / uPitch;
-        float cov = 1.0 - smoothstep(r - aa, r + aa, length(q - c));
+        // times keep: a dot shrunk to nothing would otherwise leave its soft edge behind as a faint speck
+        float cov = (1.0 - smoothstep(r - aa, r + aa, length(q - c))) * keep;
         if (t > 0.0 && cov > best) { best = cov; bt = t; }
       }
       vec3 col = mix(INK, PAPER, smoothstep(0.35, 0.9, bt));
@@ -117,7 +118,7 @@
 
   function fly() {
     btn.classList.add("is-flying");
-    if (reduce.matches) return animate(320, (k) => { state.dissolve = k; });
+    if (reduce.matches) return animate(320, (k) => { state.dissolve = k; }).then(() => btn.classList.remove("is-flying"));
     // along the nose (about 18 degrees above the horizon), speeding up, lifting, with a little yaw
     const D = Math.max(240, window.innerWidth * 0.42);
     return animate(1250, (k) => {
@@ -126,10 +127,11 @@
       const x = D * e + pull, y = -D * 0.32 * e - Math.sin(k * Math.PI) * 26;
       place(x, y, -7 * e + Math.sin(k * 9) * 2.5 * k, 1 - 0.22 * e);
       state.dissolve = ease(Math.min(1, Math.max(0, (k - 0.18) / 0.72)));
-    }).then(() => { state.dissolve = 1; place(0, 0, 0, 1); draw(); });
+    }).then(() => { state.dissolve = 1; place(0, 0, 0, 1); draw(); btn.classList.remove("is-flying"); }); // gone: settle out of sight
   }
   function land() {
     place(0, 0, 0, 1);
+    btn.classList.remove("is-flying"); // in case she answered before the throw was done
     return animate(reduce.matches ? 200 : 900, (k) => {
       state.dissolve = 1 - ease(k);
       if (!reduce.matches) place(0, 0, 0, 0.94 + 0.06 * ease(k));
