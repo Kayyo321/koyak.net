@@ -36,7 +36,14 @@ test("greeting, typo, and the way in", async () => {
   assert.ok(E.chatFacts(pack, vs).includes("FIXTURE FACT: told."));
 });
 
-test("hello never greets when the chance is zero, and resumes a run instead", () => {
+test("without the slip she still greets, plainly, and the typo line stays shut", async () => {
+  const vs = E.freshVisitor();
+  const h = E.hello(pack, vs, () => 0.5, 0.05);
+  assert.equal(text(h.steps), "hello. how may i help?");
+  assert.equal(await E.turn(pack, vs, "halp", null), null, "a plain greeting doesn't open the typo line");
+});
+
+test("mid-run, hello resumes a run instead", () => {
   const vs = started();
   const h = E.hello(pack, vs, () => 0, 0);
   assert.match(text(h.steps), /FIXTURE: refreshed\. FIXTURE: at the quay\. FIXTURE: what now\?/);

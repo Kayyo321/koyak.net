@@ -418,8 +418,9 @@ export function unfold(pack, vs, rand) {
 export function hello(pack, vs, rand, chance) {
   vs.offer = null;
   if (vs.mode !== "chat") return { steps: resume(pack, vs, "refresh") };
+  // every visit opens with her greeting; only now and then do her hands slip to the old first word
   if (rand() < chance) { learn(vs, "greeted"); return { steps: stepsOf(pack.greeting, null) }; }
-  return { steps: [] };
+  return { steps: pack.plainGreeting ? stepsOf(pack.plainGreeting, null) : [] };
 }
 
 /* ---------- paper: each face is sent only when the visitor turns to it ---------- */

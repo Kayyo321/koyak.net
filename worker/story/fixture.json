@@ -3,6 +3,7 @@
   "_about": "A synthetic content pack for the story engine. It exercises every mechanic and contains no real story text. Load it with STORY_FIXTURE=1.",
   "greetChance": 0,
   "greeting": [{ "say": "hello. how may i halp?" }, { "pause": 300 }, { "erase": 5 }, { "type": "help?" }],
+  "plainGreeting": [{ "say": "hello. how may i help?" }],
   "prompts": { "narrator": "Fixture narrator: plain and brief.", "invite": "Return 'invite' if the line asks the narrator to take the parcel or a turn; 'rude' if it insults the fog; else 'ordinary'." },
   "factText": { "heard:hum": "a hum on the stair" },
   "leave": ["^(leave|quit|exit|stop)( the (game|story))?$", "\\bback to (the )?(chat|website)\\b"],
