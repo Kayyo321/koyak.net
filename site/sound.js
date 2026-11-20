@@ -1,6 +1,6 @@
 /* The room's sound, all synthesized (no samples to load): the typewriter's strike, its space bar and carriage
    return (the lever, the carriage dragged home over its ratchet, the stop), and koyak.net's voice while it
-   types: one flowing line of vowel babble, its sound and note changing with each letter, silent in her pauses.
+   types: one flowing, low, warm murmur, its vowel and note changing with each letter, silent in her pauses.
    The pixel speaker by the typewriter mutes it all; the choice is remembered in this browser only.
    Browsers keep audio locked until the visitor's first press or key, so nothing can sound before that. */
 (() => {
@@ -136,10 +136,9 @@
   /* ---------- koyak.net's voice ---------- */
   // one unbroken line of babble for as long as she keeps typing. plate.js starts it when her mouth starts moving
   // (voiceStart), shapes it every time the mouth frame changes (voiceShape: louder wide open, softer half open,
-  // a hum when the lips meet for a moment) and lets it fall silent only when she stops typing (voiceStop).
-  // The typewriter tells her which letter she is on (say()): the vowel of the letter's name and its note glide in
-  // without a break, and consonants with a puff of air or a stop add one, with a dip, as a syllable.
-  const VOWELS = { // formants F1, F2 (Hz), for a light voice
+  // nearly nothing when the lips meet for a moment) and lets it fall silent only when she stops typing (voiceStop).
+  // The typewriter tells her which letter she is on (say()): each letter brings its own vowel and note.
+  const VOWELS = { // formants F1, F2 (Hz)
     a: [850, 1610], e: [600, 2000], i: [320, 2750], o: [520, 920], u: [360, 880], y: [480, 2350], r: [740, 1250],
   };
   const SAYS = {
@@ -147,53 +146,83 @@
     n: "e", o: "o", p: "i", q: "u", r: "r", s: "e", t: "i", u: "u", v: "i", w: "u", x: "e", y: "a", z: "i",
   };
   const PLOSIVE = /[bcdgkpqt]/, FRICATIVE = /[fhjsxz]/, NASAL = /[mnlrwvy]/;
-  const BASE = 290; // Hz
+
+  /* Her voice, "velvet": low, warm and murmured, soft at the edges, with slow glides.
+     wave     the source oscillator; base: her middle note (Hz); range: semitones per letter step;
+     drift    how far the melody wanders; scale: snap notes to a tune (null = free); qrise: lift at a question's end
+     breath   how much air is mixed in; q: formant sharpness; fscale: formant shift; lowpass: the top of the sound
+     vib      [rate Hz, depth]; glide: how fast notes and vowels move (s); kick: semitones each syllable slides in from
+     pluck    how much each letter strikes like a note; dip: how far consonants close the sound; gain: loudness trim
+     fall     the pitch she drops to as she pauses */
+  const VOICE = {
+    wave: "sine", base: 185, range: 0.6, drift: 0.6, scale: null, qrise: 2, breath: 0.22, q: 2.2, fscale: 0.95,
+    lowpass: 1300, vib: [4.6, 0.006], glide: 0.06, kick: 0, pluck: 0, dip: 0.45, gain: 0.95, fall: 0.9,
+  };
+  const P = () => VOICE;
+
   let phrase = 0; // drifts across a reply so the voice wanders a little, like intonation
   const now = { ch: "a", question: false };
-  let vox = null; // the live voice: { src, lfo, f1, f2, artic, out }
+  let vox = null; // the live voice
 
-  const pitchFor = (c, question) => {
-    const step = ((c.charCodeAt(0) * 7) % 9) - 4; // the letter sets the note, so a word always sounds like itself
-    phrase = phrase * 0.85 + rand(-1, 1) * 0.6;
-    return BASE * Math.pow(2, (step * 0.5 + phrase + (question ? 3 : 0)) / 12);
-  };
-  function glide(c, question, tc = 0.03) {
-    if (!vox) return;
-    const t = ctx.currentTime, [a, b] = SAYS[c] ? VOWELS[SAYS[c]] : VOWELS.i;
-    vox.src.frequency.setTargetAtTime(pitchFor(c, question), t, tc * 1.4);
-    vox.f1.frequency.setTargetAtTime(a, t, tc);
-    vox.f2.frequency.setTargetAtTime(b, t, tc);
+  function snap(semis, scale) {
+    if (!scale) return semis;
+    const oct = Math.floor(semis / 12), r = semis - oct * 12;
+    let best = scale[0], bd = 99;
+    for (const s of [...scale, 12]) if (Math.abs(s - r) < bd) { bd = Math.abs(s - r); best = s; }
+    return oct * 12 + best;
   }
-
+  function pitchFor(c, question) {
+    const p = P();
+    const step = ((c.charCodeAt(0) * 7) % 9) - 4; // the letter sets the note, so a word always sounds like itself
+    phrase = phrase * 0.85 + rand(-1, 1) * p.drift;
+    return p.base * Math.pow(2, snap(step * p.range + phrase + (question ? p.qrise : 0), p.scale) / 12);
+  }
+  function formantsFor(c) {
+    const [a, b] = SAYS[c] ? VOWELS[SAYS[c]] : VOWELS.i, s = P().fscale;
+    return [a * s, b * s];
+  }
   function voiceStart() {
     if (!live() || vox) return;
-    const t = ctx.currentTime;
-    const src = ctx.createOscillator(); src.type = "sawtooth";
-    src.frequency.setValueAtTime(pitchFor(now.ch, now.question), t);
-    const lfo = ctx.createOscillator(), depth = ctx.createGain(); // a little vibrato keeps it a voice, not a tone
-    lfo.frequency.value = rand(5, 6); depth.gain.value = BASE * 0.012;
-    lfo.connect(depth).connect(src.frequency);
-    const body = ctx.createBiquadFilter(); body.type = "lowpass"; body.frequency.value = 3600; body.Q.value = 0.5;
-    const artic = ctx.createGain(); artic.gain.value = 1;   // dips for consonants
-    const out = ctx.createGain(); out.gain.setValueAtTime(0, t); // follows the mouth
-    src.connect(body);
-    const [a, b] = SAYS[now.ch] ? VOWELS[SAYS[now.ch]] : VOWELS.i;
-    const f1 = ctx.createBiquadFilter(); f1.type = "bandpass"; f1.frequency.value = a; f1.Q.value = 6;
-    const f2 = ctx.createBiquadFilter(); f2.type = "bandpass"; f2.frequency.value = b; f2.Q.value = 6;
-    const l1 = ctx.createGain(); l1.gain.value = 1.7; const l2 = ctx.createGain(); l2.gain.value = 1.1;
-    const dry = ctx.createGain(); dry.gain.value = 0.18;
-    body.connect(f1).connect(l1).connect(artic);
-    body.connect(f2).connect(l2).connect(artic);
-    body.connect(dry).connect(artic);
+    const p = P(), t = ctx.currentTime;
+    const body = ctx.createBiquadFilter(); body.type = "lowpass"; body.frequency.value = p.lowpass; body.Q.value = 0.4;
+    let src = null, lfo = null, air = null;
+    if (p.wave) {
+      src = ctx.createOscillator();
+      src.type = p.wave;
+      src.frequency.setValueAtTime(p.base ? pitchFor(now.ch, now.question) : 200, t);
+      if (p.vib[1] > 0) {
+        lfo = ctx.createOscillator(); const depth = ctx.createGain();
+        lfo.frequency.value = p.vib[0]; depth.gain.value = p.base * p.vib[1];
+        lfo.connect(depth).connect(src.frequency); lfo.start(t);
+      }
+      src.connect(body); src.start(t);
+    }
+    if (p.breath > 0) {
+      air = ctx.createBufferSource(); air.buffer = noise; air.loop = true;
+      const ag = ctx.createGain(); ag.gain.value = p.breath;
+      air.connect(ag).connect(body); air.start(t, Math.random() * 0.5);
+    }
+    const artic = ctx.createGain(); artic.gain.value = 1 - p.pluck * 0.7; // consonant dips, and the strike of each note
+    const out = ctx.createGain(); out.gain.setValueAtTime(0, t);         // follows the mouth
+    let f1 = null, f2 = null;
+    if (p.q > 0) {
+      const [a, b] = formantsFor(now.ch);
+      f1 = ctx.createBiquadFilter(); f1.type = "bandpass"; f1.frequency.value = a; f1.Q.value = p.q;
+      f2 = ctx.createBiquadFilter(); f2.type = "bandpass"; f2.frequency.value = b; f2.Q.value = p.q;
+      const l1 = ctx.createGain(); l1.gain.value = 1.7; const l2 = ctx.createGain(); l2.gain.value = 1.1;
+      const dry = ctx.createGain(); dry.gain.value = 0.15;
+      body.connect(f1).connect(l1).connect(artic);
+      body.connect(f2).connect(l2).connect(artic);
+      body.connect(dry).connect(artic);
+    } else body.connect(artic);
     artic.connect(out).connect(master);
-    src.start(t); lfo.start(t);
-    vox = { src, lfo, f1, f2, artic, out };
+    vox = { p, src, lfo, air, f1, f2, artic, out };
   }
-  // the mouth frame plate.js has just put up: "wide", "half" or "shut" (lips touching for a beat: a soft hum)
+  // the mouth frame plate.js has just put up: "wide", "half" or "shut" (lips touching for a beat)
   function voiceShape(open = "wide") {
     if (!vox) voiceStart();
     if (!vox) return;
-    const level = open === "wide" ? 0.27 : open === "half" ? 0.19 : 0.05;
+    const level = (open === "wide" ? 0.27 : open === "half" ? 0.19 : 0.04) * vox.p.gain;
     vox.out.gain.setTargetAtTime(level, ctx.currentTime, 0.018);
   }
   function voiceStop() {
@@ -202,8 +231,8 @@
     vox = null;
     v.out.gain.cancelScheduledValues(t);
     v.out.gain.setTargetAtTime(0, t, 0.03);
-    v.src.frequency.setTargetAtTime(v.src.frequency.value * 0.92, t, 0.05); // a small fall into the pause
-    v.src.stop(t + 0.25); v.lfo.stop(t + 0.25);
+    if (v.src) v.src.frequency.setTargetAtTime(v.src.frequency.value * v.p.fall, t, 0.05); // a small fall into the pause
+    for (const n of [v.src, v.lfo, v.air]) if (n) n.stop(t + 0.25);
   }
   // the letter her hands are on (spaces and punctuation keep the last sound)
   function say(ch, { question = false } = {}) {
@@ -212,18 +241,30 @@
     if (!(SAYS[c] || /[0-9]/.test(c))) return;
     now.ch = c;
     if (!vox || !live()) return;
-    const t = ctx.currentTime;
-    glide(c, question);
-    // consonants articulate: a stop closes the sound for an instant, a fricative breathes over it
-    if (PLOSIVE.test(c) || FRICATIVE.test(c) || NASAL.test(c)) {
-      const dip = PLOSIVE.test(c) ? 0.12 : NASAL.test(c) ? 0.5 : 0.3;
-      vox.artic.gain.cancelScheduledValues(t);
-      vox.artic.gain.setTargetAtTime(dip, t, 0.006);
-      vox.artic.gain.setTargetAtTime(1, t + 0.025, 0.02);
+    const p = vox.p, t = ctx.currentTime;
+    if (vox.src && p.base) {
+      const f = pitchFor(c, question);
+      if (p.kick) vox.src.frequency.setValueAtTime(f * Math.pow(2, p.kick / 12), t);
+      vox.src.frequency.setTargetAtTime(f, t, p.glide * 1.4);
     }
-    if (PLOSIVE.test(c)) hiss(t + 0.02, { freq: 2500, q: 0.8, gain: 0.1, decay: 0.012 });
-    else if (FRICATIVE.test(c)) hiss(t, { type: "highpass", freq: c === "h" ? 1800 : 4800, q: 0.7, gain: 0.06, attack: 0.004, decay: 0.035 });
+    if (vox.f1) { const [a, b] = formantsFor(c); vox.f1.frequency.setTargetAtTime(a, t, p.glide); vox.f2.frequency.setTargetAtTime(b, t, p.glide); }
+    const g = vox.artic.gain;
+    if (p.pluck > 0) { // struck: up to full, then ringing down to a sustain
+      g.cancelScheduledValues(t);
+      g.setTargetAtTime(1, t, 0.003);
+      g.setTargetAtTime(1 - p.pluck * 0.7, t + 0.012, 0.08);
+    } else if (p.dip > 0 && (PLOSIVE.test(c) || FRICATIVE.test(c) || NASAL.test(c))) { // consonants articulate
+      const dip = 1 - p.dip * (PLOSIVE.test(c) ? 1 : NASAL.test(c) ? 0.4 : 0.7);
+      g.cancelScheduledValues(t);
+      g.setTargetAtTime(dip, t, 0.006);
+      g.setTargetAtTime(1, t + 0.025, 0.02);
+    }
+    if (p.q > 0 && p.wave) { // a puff of air on the consonants that have one (vowel voices only)
+      if (PLOSIVE.test(c)) hiss(t + 0.02, { freq: 2500, q: 0.8, gain: 0.08, decay: 0.012 });
+      else if (FRICATIVE.test(c)) hiss(t, { type: "highpass", freq: c === "h" ? 1800 : 4800, q: 0.7, gain: 0.05, attack: 0.004, decay: 0.035 });
+    }
   }
+
 
   /* ---------- mute ---------- */
   function setMuted(m) {
@@ -250,5 +291,6 @@
     show();
   }
 
-  window.koyakSound = { key, space, jam, carriage, say, voiceStart, voiceShape, voiceStop, setMuted, get muted() { return muted; }, get ready() { return !!ctx; } };
+  window.koyakSound = { key, space, jam, carriage, say, voiceStart, voiceShape, voiceStop, setMuted,
+    get muted() { return muted; }, get ready() { return !!ctx; } };
 })();
