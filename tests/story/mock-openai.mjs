@@ -23,6 +23,11 @@ function answer(body) {
     const l = input.line.toLowerCase();
     return { kind: /\byou(r)?\b/.test(l) && /\b(turn|carry|girl|tell|go)\b/.test(l) ? "invite" : /\b(stupid|smelly)\b/.test(l) ? "rude" : "ordinary" };
   }
+  if (name === "improvise") {
+    const beat = String(input.newest_beat || "");
+    if (/\b(summon|magic|spell|gun|anime)\b/i.test(beat)) return { fits: false, say: "" };
+    return { fits: true, say: "MOCK MODEL: " + beat.slice(0, 80) };
+  }
   if (name === "chat_intent") {
     const best = input.intents.map((i) => ({ id: i.id, n: overlap(input.message, i.desc) })).sort((a, b) => b.n - a.n)[0];
     return { intent: best && best.n >= 2 ? best.id : "none" };
@@ -31,7 +36,7 @@ function answer(body) {
     return body.instructions; // lets a test see exactly what the chat model was told
   }
   if (name === "text") {
-    const last = Array.isArray(body.input) ? body.input[body.input.length - 1]?.content : JSON.parse(body.input || "{}").newest_beat;
+    const last = Array.isArray(body.input) ? body.input[body.input.length - 1]?.content : "";
     return "MOCK MODEL: " + String(last || "").slice(0, 80);
   }
   return {};

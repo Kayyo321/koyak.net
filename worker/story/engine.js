@@ -148,6 +148,25 @@ const HELP_ASKED = [
   "\\b(i am|im|i feel|i got|i have got|i have) (stuck|lost|confused)\\b", "\\bhow do (i|we|you) play\\b",
   "\\bhelp me\\b(?! (with|to|carry|lift|find|get|open|up|down|across)\\b)",
 ];
+// things no scene here can hold, whatever the model makes of them: powers, summons, magic, weapons the story never
+// gave, and the visitor declaring how a fight ends. A scene's own authored actions still win (if the author wrote
+// an attack, it is an action, not an invention), and a pack can add its own patterns as `invented`.
+const INVENTED = [
+  "\\b(summon|summons|summoned|summoning|conjure|conjures|conjured|invoke|invokes|invoked|incant|incantation)\\b",
+  "\\b(cast|casts|casting) (a |an |my |the )?(spell|curse|hex|charm|fireball|magic)\\b", "\\b(spells|magic|magical|sorcery|witchcraft|mana)\\b",
+  "\\b(teleport|teleports|teleported|teleporting|blink to|time travel|rewind time|stop time)\\b",
+  "\\b(super ?powers?|powers? up|my powers?|domain expansion|cursed technique|transform into|transforms into|shape ?shift|shapeshift)\\b",
+  "\\b(resurrect|resurrects|revive|revives|respawn|respawns|spawn|spawns|god ?mode|cheat|cheats|cheat code|noclip)\\b",
+  "\\b(gun|guns|pistol|rifle|shotgun|bomb|bombs|grenade|nuke|missile|rocket launcher|laser|lightsaber)\\b",
+  "\\bi (am|m) (a |an |the )?(god|wizard|witch|sorcerer|mage|dragon|demon|superhero|immortal|invincible|chosen one)\\b",
+  "\\b(kill|kills|killed|slay|slays|slew|murder|murders|destroy|destroys|obliterate|annihilate|defeat|defeats|behead|stab|stabs|shoot|shoots|explode|explodes)\\b",
+  "\\b(the story ends|i win|you lose|everyone dies|skip to the end|rewrite the story|change the story)",
+];
+const invented = (pack, text) => any(INVENTED, text) || any(pack.invented, text);
+// the line with its inventions taken out: if an authored action still matches this, it only matched by the way
+// ("i cast a fireball at the gate" is not a way through the gate), so the invention is what gets answered
+const uninvented = (pack, text) => INVENTED.concat(pack.invented || []).reduce((t, src) => t.replace(new RegExp(src, "gi"), " "), text);
+
 const askedForHelp = (text) => any(HELP_ASKED, text) && !/^(ask|say|tell|shout|call|whisper|yell|answer|reply)\b/.test(text);
 const wantsHelp = (text) => askedForHelp(text) || any(GENERIC.help, text);
 
@@ -164,6 +183,9 @@ export async function sceneTurn(pack, vs, raw, ai) {
   if (wantsHelp(text)) return perform(pack, vs, run, scene, { kind: "help" });
 
   let r = matchScene(pack, run, scene, text, raw);
+  // making something up doesn't make it so: unless the author wrote it into an action here, it doesn't happen,
+  // and the model is never asked to narrate it
+  if (invented(pack, text) && !(r?.kind === "act" && !any(r.act.match, uninvented(pack, text)))) r = { kind: "impossible" };
   if (!r && ai) r = await interpret(pack, run, scene, raw, ai);
   if (!r && any(GENERIC.inspect, text)) r = { kind: "look" }; // looking at something unnamed: the scene itself
   if (!r) r = { kind: "unclear" };
@@ -223,7 +245,14 @@ async function interpret(pack, run, scene, raw, ai) {
   if (!out || typeof out.intent !== "string") return null;
   const id = out.intent;
   if (id === "unclear") return { kind: "unclear" };
-  if (id === "freeform") { const s = printable(out.say, 280); return s ? { kind: "freeform", say: s } : null; }
+  if (id === "impossible") return { kind: "impossible" };
+  if (id === "freeform") {
+    const s = printable(out.say, 280);
+    // the model's own words are held to the same rule as the visitor's: if they bring in what can't be here, or
+    // repeat a word the visitor made up that this scene has never heard of, they're not said
+    if (!s || invented(pack, norm(s)) || coined(raw, s, [lines(scene.look)[0], ...intents.map((i) => i.desc), ...found])) return { kind: "impossible" };
+    return { kind: "freeform", say: s };
+  }
   const known = intents.find((i) => i.id === id);
   if (!known) return null;
   // a commitment (an ending) is never taken on a hunch
@@ -238,9 +267,27 @@ async function interpret(pack, run, scene, raw, ai) {
   return { kind: id };
 }
 
+// a word the visitor typed, that the model's narration repeats, and that nothing in the scene contains: a name or
+// thing they made up (a summoned creature, say) that the model was about to write into the story
+const WORDS = (t) => String(t || "").toLowerCase().match(/[a-z]{4,}/g) || [];
+const COMMON = new Set(("that this with from your youre into onto they them their there here have just then than what when " +
+  "where which while some something nothing very still back down over under again away around slowly quietly carefully gently " +
+  "nothing changes happens moment pause breath hand hands foot feet head eyes look looks around stand stands sit sits wait waits " +
+  "hum hums humming whistle whistles sing sings song tune stone stones pebble ground floor wall walls shoe shoes coat pocket " +
+  "pockets sleeve hair face nose knees step steps turn turns stretch yawn yawns blink blinks sigh sighs cough coughs tap taps " +
+  "pick picks picked up").split(" "));
+function coined(raw, said, known) {
+  const theirs = new Set(WORDS(raw));
+  const scene = new Set(known.flatMap(WORDS));
+  return WORDS(said).some((w) => theirs.has(w) && !scene.has(w) && !COMMON.has(w) && !scene.has(w.replace(/s$/, "")));
+}
+
 function perform(pack, vs, run, scene, r) {
   switch (r.kind) {
     case "unclear": return flat(say(fill(nth(scene.unclear, bump(run, "unclear")) || pack.scene.unclear, run)));
+    // something the story can't hold: the scene's own refusal, then the pack's, and the unclear line if neither
+    case "impossible": return flat(say(fill(nth(scene.impossible, bump(run, "impossible")) || nth(pack.scene.impossible, bump(run, "impossible:all"))
+      || nth(scene.unclear, bump(run, "unclear")) || pack.scene.unclear, run)));
     case "freeform": return flat(say(r.say));
     case "help": return flat(say(fill(scene.hint || pack.scene.hint, run)));
     case "look": return flat(stepsOf(nth(scene.look, bump(run, run.scene + ":look")), run));
@@ -361,12 +408,17 @@ export async function repriseTurn(pack, vs, raw, ai) {
   if (!text || askedForHelp(text)) return flat(stepsOf(nth(R.nudge, rep.step - 1), null));
 
   if (rep.step <= R.beats) {
-    rep.beats.push(line);
+    // the visitor tells it, but it is still this story: a beat it can't hold isn't kept, and she asks again
+    const offscript = () => flat(stepsOf(nth(R.offscript, (rep.off = (rep.off || 0) + 1) - 1) || nth(R.nudge, rep.step - 1), null));
+    if (invented(pack, text)) return offscript();
     let reply = null;
     if (ai) {
-      const out = await ai.improvise({ voice: R.improvise, beats: rep.beats, last: line });
-      reply = out ? printable(out, 320) : null;
+      const out = await ai.improvise({ voice: R.improvise, beats: rep.beats.concat([line]), last: line });
+      if (out && out.fits === false) return offscript();
+      reply = out && out.say ? printable(out.say, 320) : null;
+      if (reply && invented(pack, norm(reply))) reply = null;
     }
+    rep.beats.push(line);
     if (!reply) reply = echo(nth(R.fallback, rep.step - 1), line);
     const after = nth(R.after, rep.step - 1);
     rep.step++;

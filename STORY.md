@@ -24,6 +24,15 @@ this repository does: the story lives in a sealed content pack that only the Wor
   only ever given the current scene, what this visitor has already found, and the moves allowed from here.
   Canonical lines and ending conditions are authored, never generated. Story turns don't count against the chat
   rate limit; when the limiter trips, they simply run without the model.
+- **The visitor can't write themselves into it.** Inventions (summoning things, powers, spells, weapons the story
+  never gave, "i kill the wolf", "skip to the end") are caught by fixed patterns in `engine.js` before the model
+  is asked anything, and simply don't happen. One of the scene's own actions only wins if its pattern needed the
+  invented word itself. The model is told to call anything else that isn't in the scene `impossible`. Its own
+  narration is refused if it brings in an invention or repeats a word the visitor made up. In the reprise, a beat
+  that doesn't belong isn't kept, and she asks again. Optional pack fields for the wording, all in her voice:
+  `scene.impossible` (one line or a list, for every scene), `scenes.<id>.impossible` (one scene's own),
+  `reprise.offscript` (the reprise's), and `invented` (extra patterns to treat as made up). Without them, the
+  scene's unclear line and the reprise's nudge are used.
 - **Ordinary chat stays ordinary.** `/api/chat` still answers like before. The only change is that the persona is
   given whatever this visitor has already found out (and nothing else), so the assistant can talk about it.
 

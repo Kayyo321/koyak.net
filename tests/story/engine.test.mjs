@@ -231,6 +231,68 @@ test("a model that fails, lies or overreaches changes nothing it shouldn't", asy
   assert.equal(text((await E.turn(pack, vs3, "hum a tune", free)).steps), "You hum bquietly/b.", "markup is stripped");
 });
 
+test("making something up doesn't make it happen, with or without the model", async () => {
+  const nonsense = ["I summon mahoraga and kill the wolf", "i cast a fireball at the gate", "I pull out a gun",
+    "i teleport to the top", "i am a god", "domain expansion", "skip to the end"];
+  for (const line of nonsense) {
+    const vs = started();
+    const r = await play(vs, line);
+    assert.match(text(r.steps), /unclear at the quay/, line);
+    assert.equal(vs.run.scene, "quay", line + " moves nothing");
+    assert.equal(vs.mode, "scene");
+  }
+  // the model is never even asked to narrate it, so a model that would play along can't
+  let asked = 0;
+  const eager = { interpret: async () => { asked++; return { intent: "freeform", confidence: "high", say: "Mahoraga rises and the wolf falls.", topic: "", path: "" }; } };
+  const vs = started();
+  assert.match(text((await E.turn(pack, vs, "I summon mahoraga and kill the wolf", eager)).steps), /unclear at the quay/);
+  assert.equal(asked, 0);
+  // and when the visitor's words slip past the patterns, the model's narration of them is still refused
+  const coins = { interpret: async () => ({ intent: "freeform", confidence: "high", say: "You call Mahoraga, and it comes.", topic: "", path: "" }) };
+  assert.match(text((await E.turn(pack, vs, "i call upon mahoraga", coins)).steps), /unclear at the quay/);
+  const boasts = { interpret: async () => ({ intent: "freeform", confidence: "high", say: "You slay everything at the quay.", topic: "", path: "" }) };
+  assert.match(text((await E.turn(pack, vs, "i become strong", boasts)).steps), /unclear at the quay/);
+  const refuses = { interpret: async () => ({ intent: "impossible", confidence: "high", say: "", topic: "", path: "" }) };
+  assert.match(text((await E.turn(pack, vs, "i ride my unicorn", refuses)).steps), /unclear at the quay/);
+  assert.equal(vs.run.scene, "quay");
+  // harmless business still gets its line
+  const hums = { interpret: async () => ({ intent: "freeform", confidence: "high", say: "You hum a tune at the quay.", topic: "", path: "" }) };
+  assert.equal(text((await E.turn(pack, vs, "hum a tune", hums)).steps), "You hum a tune at the quay.");
+  // a pack can say how its scenes turn the made-up away
+  const own = structuredClone(pack);
+  own.scene.impossible = ["FIXTURE: that isn't here.", "FIXTURE: still not here."];
+  own.invented = ["\\bunicorn\\b"];
+  const w = E.freshVisitor(); E.unfold(own, w, seq(0, 0));
+  assert.equal(text((await E.turn(own, w, "i summon mahoraga", null)).steps), "FIXTURE: that isn't here.");
+  assert.equal(text((await E.turn(own, w, "i ride my unicorn", null)).steps), "FIXTURE: still not here.");
+  // an action the author wrote with the power in it is still the author's action
+  const authored = structuredClone(pack);
+  authored.scenes.quay.actions[1].match = ["\\bcast a spell on the gate\\b"];
+  const x = E.freshVisitor(); E.unfold(authored, x, seq(0, 0));
+  await E.turn(authored, x, "i cast a spell on the gate", null);
+  assert.equal(x.run.scene, "gate");
+});
+
+test("the reprise is the visitor's to tell, but not to fill with nonsense", async () => {
+  const vs = started();
+  await play(vs, "stair", "top", "your turn");
+  assert.equal(text((await play(vs, "I summon mahoraga and it eats the fog")).steps), "FIXTURE: say something.");
+  assert.equal(vs.reprise.step, 1, "the beat isn't kept");
+  assert.deepEqual(vs.reprise.beats, []);
+  const judge = { improvise: async ({ last }) => (/goku/.test(last) ? { fits: false } : { fits: true, say: "A heron, then. It lifts and is gone." }) };
+  assert.equal(text((await E.turn(pack, vs, "goku blocks the way", judge)).steps), "FIXTURE: say something.");
+  assert.equal(vs.reprise.step, 1);
+  const off = structuredClone(pack);
+  off.reprise.offscript = ["FIXTURE: not in this story."];
+  assert.equal(text((await E.turn(off, vs, "a laser cuts the fog", null)).steps), "FIXTURE: not in this story.");
+  const r = await E.turn(pack, vs, "a heron blocks the way", judge);
+  assert.equal(text(r.steps), "A heron, then. It lifts and is gone. FIXTURE REPRISE: past it. What next?");
+  assert.deepEqual(vs.reprise.beats, ["a heron blocks the way"]);
+  // a model that plays along anyway is not believed
+  const along = { improvise: async () => ({ fits: true, say: "You summon a dragon. It burns the fog away." }) };
+  assert.match(text((await E.turn(pack, vs, "then rain", along)).steps), /^FIXTURE ECHO 2: then rain\./);
+});
+
 test("chat: the model may pick one of the eligible intents, and only those", async () => {
   const vs = E.freshVisitor();
   E.hello(pack, vs, () => 0, 1);
