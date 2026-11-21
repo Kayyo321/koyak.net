@@ -347,7 +347,9 @@
     btn.classList.toggle("is-muted", muted);
   }
   if (btn) {
-    btn.addEventListener("click", () => { ensure(); setMuted(!muted); show(); if (!muted) key({ gain: 0.6 }); });
+    btn.addEventListener("click", (e) => { ensure(); setMuted(!muted); show(); if (!muted) key({ gain: 0.6 });
+      // a mouse/touch click (detail > 0) shouldn't leave focus here, or Space would re-toggle it instead of typing
+      if (e.detail > 0) btn.blur(); });
     show();
   }
 

@@ -373,6 +373,9 @@ with sync_playwright() as p:
     check("sound: muting is remembered", page.evaluate("koyakSound.muted"))
     page.locator("#mute").focus(); page.keyboard.press("Enter")
     check("sound: Enter on the speaker toggles it without typing", not page.evaluate("koyakSound.muted") and page.evaluate("__typewriter.page.line") == 0)
+    mute.click()  # a real mouse click must not keep focus, so Space types instead of toggling again
+    page.keyboard.press("Space")
+    check("sound: Space after clicking the speaker types, not toggles", page.evaluate("koyakSound.muted") and page.evaluate("document.activeElement.id") != "mute")
     check("ripple/sound: no console errors", not errors, "; ".join(errors)[:200])
     ctx.close()
 
