@@ -570,7 +570,11 @@
   /* ---------- talking to koyak.net ---------- */
   // what the visitor has typed since their last send, kept apart from the page (which forgets lines off the top)
   const draft = { lines: [[]] };
-  const history = []; // { role, content }, the conversation so far (the Worker keeps only the latest few)
+  const history = []; // { role, content }, everything said on this sheet, story lines included
+  // what the model is shown as the conversation so far (the Worker keeps only the latest few). It holds only
+  // ordinary talk the model itself answered: lines the story scripts are never in it, and whenever the story
+  // speaks, it is wiped, so the talk after an ending starts from nothing and can't carry the game on
+  const memory = [];
   let turn = "you";    // "you" | "ai": while it is koyak.net's turn, nothing the visitor does reaches the machine
   let swapped = false; // when the hands trade places, so do the inks and the machine's colour
   let pace = 1;        // how fast her hands go; the server says when she knows the words by heart
@@ -725,7 +729,7 @@
     try {
       const r = await fetch("api/chat", {
         method: "POST", headers: { "content-type": "application/json" }, signal: ctl.signal,
-        body: JSON.stringify({ messages: history.slice(-16), turn: turnId }),
+        body: JSON.stringify({ messages: memory.slice(-16), turn: turnId }),
       });
       const data = await r.json().catch(() => ({}));
       if (r.ok && (data.reply || data.steps)) return data;
@@ -747,7 +751,8 @@
     retry = null;
     setTurn("ai");
     if (live) live.textContent = "koyak.net is typing";
-    if (history[history.length - 1]?.content !== text || history[history.length - 1]?.role !== "user") history.push({ role: "user", content: text });
+    const asked = { role: "user", content: text };
+    for (const log of [history, memory]) if (log[log.length - 1]?.content !== text || log[log.length - 1]?.role !== "user") log.push({ ...asked });
     draft.lines = [[]];
     draftChanged(); // sent: the plane will come back at half strength
     const answer = ask(turnId);      // the request and the carriage returns happen together
@@ -759,7 +764,11 @@
     if (data.steps) said = await perform(data.steps);
     else { said = data.reply; await typeOut(data.reply); }
     if (data.retry) retry = { text, turn: turnId };
-    else if (!data.failed && said) history.push({ role: "assistant", content: said });
+    else if (!data.failed && said) {
+      history.push({ role: "assistant", content: said });
+      if (data.steps) memory.length = 0; // the story answered: forget it all, this line included
+      else memory.push({ role: "assistant", content: said });
+    }
     await gap();
     draft.lines = [[]];
     setTurn("you");
@@ -778,6 +787,7 @@
       await gap();
       const said = await perform(steps);
       if (said) history.push({ role: "assistant", content: said });
+      memory.length = 0; // her own scripted turn is the story's, not the conversation's
       await gap();
       setTurn("you");
       if (live) live.textContent = "koyak.net wrote: " + said;
@@ -810,6 +820,6 @@
   }).catch((e) => console.error(e));
 
   const ready = new Promise((res) => { const t = setInterval(() => { if (M) { clearInterval(t); res(); } }, 50); });
-  window.__typewriter = { page, type, space, back, ret, T, clock, render: () => frame(), send, say, ready, draftText, history, layout, BACK, scrollBy, maxScroll,
+  window.__typewriter = { page, type, space, back, ret, T, clock, render: () => frame(), send, say, ready, draftText, history, memory, layout, BACK, scrollBy, maxScroll,
     get turn() { return turn; }, get swapped() { return swapped; }, get pending() { return retry ? retry.text : null }, get typing() { return !!draftText(); } }; // for the tests (T: timings)
 })();

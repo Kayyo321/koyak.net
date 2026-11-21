@@ -277,6 +277,12 @@ with sync_playwright() as p:
     talk(page, "then rain")
     r = talk(page, "you are late")
     check("reprise: finale, hands back", r == "FIXTURE REPRISE: thank you." and not page.evaluate("__typewriter.swapped"), r)
+    # once the story is over, ordinary talk starts from nothing: the model is never shown the story's lines
+    with page.expect_request(lambda q: q.url.endswith("/api/chat") and q.method == "POST") as req:
+        talk(page, "hello there")
+    sent = json.loads(req.value.post_data)["messages"]
+    check("after the end: the model is told only the new line", sent == [{"role": "user", "content": "hello there"}], sent)
+    check("after the end: the sheet still holds the story", any("FIXTURE" in m["content"] for m in page.evaluate("__typewriter.history")))
     page.reload(); page.wait_for_selector("#writer-canvas[data-ready]"); page.wait_for_selector(".shelf .fold", state="attached")
     check("memory: kept after a reload", talk(page, "what do you do for fun") == "FIXTURE: fun memory.")
     check("no console errors", not errs, errs)
